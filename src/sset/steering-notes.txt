@@ -1,0 +1,29 @@
+General
+-------
+
+Menu items should not have spaces in their names, and the names should be <25 char long. 
+
+For example
+
+VLIST background_vl[] = {
+"Background_color(R)", &background_color[0], 0, NP, 0, ME_DEC,	
+"Background_color(G)", &background_color[1], 0, NP, 0, ME_DEC,
+"Background_color(B)", &background_color[2], 0, NP, 0, ME_DEC,
+NS,
+};
+
+
+Notice that the names are "Background_color", not "Background color". 
+Using spaces makes the parsing of root files fail. 
+
+Calibration
+-----------
+
+
+Steering paradigm
+-----------------
+
+Use dotsize >= 2 or you'll get flickering dots, especially near the horizon.
+
+Dot density around 100 per square (1000x1000) is good. If you run this up to 1000, you'll start dropping frames. 
+

@@ -1,0 +1,99 @@
+
+Notes for collecting steering data and transferring data to unagi
+
+
+REX: Steps for collecting steering data
+---------------------------------------
+
+0. Select paradigm from Processes window and hit "Run".
+1. Load root file and set other parameters if needed. 
+2. Hit "Clock Off" button to start the clock. 
+3. Open data file
+ a. Rex main window: File > Open Data File
+ b. Navigate to correct folder: /data/steer
+ c. Enter base filename, e.g. fstr112707a or fstr20071127a
+    REX will append an "A"("E") to the filename for analog(event) data. 
+ d. Hit "Open". Filename will be written at top of REX main window (you may
+    not see the entire filename!)
+
+ e. ***IMPORTANT***   Reset States  *** IMPORTANT ***
+
+ f. Hit "Paradigm Stopped" (red) button to start paradigm. 
+
+4. Close data file (with paradigm still running)
+ a. File > Close Data File
+
+5. To check for data, 
+
+ a. open a terminal window and navigate to the data folder:
+
+# cd /data/steer
+
+ b. this command will list all files and sizes, with the most recently created
+    files LAST:
+
+# ls -lrt
+
+ c. The data files with "A" and "E" are the analog and event data, respectively.
+    A file size of 512 means the file has no data! 
+
+
+Transferring data to unagi
+--------------------------
+
+1. This should be done after data acquisition is complete. The file transfer
+can slow REX down so that frames are dropped.
+
+2. Open a terminal window. 
+3. Change dir to the data folder
+
+# cd /data/steer
+
+4. Establish a web connection with this command:
+
+# webon
+
+5. Check that the connection is established with this command:
+
+# ifconfig
+
+The results of this command give info on all tcp/ip connections. Only one 
+matters here - it is labelled "en1:". Beneath the "en1" heading there should 
+be a line that starts with "inet:". It is followed by a group of 4 numbers
+separated by dots ".". 
+
+If the numbers read "128.120.140.xxx", where "xxx" may be anything from 1-255, 
+then there is a connection and you can go to the next step. 
+
+If the numbers read "0.0.0.0", the connection is not
+established yet. Just wait a bit and try the "ifconfig" command again. You 
+don't need to re-enter the "webon" command!!! It may take as long as a few 
+minutes for the connection to be established. 
+
+6. To transfer the files to unagi (to Heidi's account), follow these steps. 
+I am assuming here that we will transfer the files for a single day's work. 
+Let's assume that the file names used (when the REX data file was opened)
+are all "fstr112707a", "fstr112707b", ...
+
+ a. connect to unagi with this command
+
+# sftp her@unagi.ucdavis.edu
+
+you should get a prompt that looks like this:
+
+sftp> 
+
+ b. Change directories on unagi:
+
+sftp> cd steering/data
+
+ c. Transfer the files. Note the placement of the "*". This is a "wildcard"
+and means "any other letters or numbers that make up a complete filename". 
+
+sftp> put fstr112707*
+
+ d. Exit sftp
+
+sftp> quit
+
+
