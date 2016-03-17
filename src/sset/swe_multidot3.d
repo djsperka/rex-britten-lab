@@ -105,7 +105,7 @@
 
 // Render Structures
 DotStruct f_fpStruct;		// fp parameters
-static FF2DStruct f_ff2dStruct[(MAXLIST + 1)];	// ff2d parameters
+FF2DStruct f_ff2dStruct[(MAXLIST + 1)];	// ff2d parameters
 int f_fpHandle = 0;			// handle for dot
 int f_ff2dHandle[MAXLIST + 1];		// handle for ff2d
 int f_handleCount=0;		// used in my_check_for_handles()
@@ -113,26 +113,28 @@ int f_i = 0;
 
 
 // Render related variables
-static int framerate = 85;
+int f_width;
+int f_height;
+double f_framerate;
 
 /* counters, flags, and seed declarations */
-static int seedflg = 0;
-static int nstim,                 /* number of stimuli configured */
+int seedflg = 0;
+int nstim,                 /* number of stimuli configured */
 	   stim_number,
        stimcnt,               /* counter for stimuli per trial */
 	   durcnt,		  /* counter for duration */
 	   isicnt,                /* counter for isi */
        errcnt,                /* error count */
        gtrcnt;                /* good trial count */
-static int alldone;               /* through with this block! */
-static long cseed = 0, pseed = 0; /* random seeds for flow field */
-static int fpon = 0, dfon = 0;    /* flags for fixation point & stimuli on */
-static int window_on = 0;         /* flag for fixation window on */
-static int fix_led = 0;		  /* if 1, have fixation point LED on */
-static int stimindex = 76;
+int alldone;               /* through with this block! */
+long cseed = 0, pseed = 0; /* random seeds for flow field */
+int fpon = 0, dfon = 0;    /* flags for fixation point & stimuli on */
+int window_on = 0;         /* flag for fixation window on */
+int fix_led = 0;		  /* if 1, have fixation point LED on */
+int stimindex = 76;
 
 /* set luminance and dot size */
-static unsigned char dotsize = PIXSIZE, fg_grey, bg_grey;
+unsigned char dotsize = PIXSIZE, fg_grey, bg_grey;
 
 /*now the stimulus structure:
   a stimulus is either linear or spiral-space;
@@ -149,17 +151,17 @@ struct stim {
 };
 
 /* stimulus array */
-static struct stim stimlist[(MAXLIST+1)];
+struct stim stimlist[(MAXLIST+1)];
 
 /* pointer for moving through stimulus array */
-static struct stim *sp = NULL;
+struct stim *sp = NULL;
 
 /* fixation point and dotfield handles */
-static unsigned char fphandle,
+unsigned char fphandle,
  	dflhandle, 
 	dfrhandle,
 	ffhandle;
-static int fprh, ffrh;            /* realization handles */
+int fprh, ffrh;            /* realization handles */
 
 //extern Msg *msg;
 
@@ -167,11 +169,11 @@ static int fprh, ffrh;            /* realization handles */
  * Declaration of statelist variables.
  ************************************************************************/
 
-static long seed = 1111,  /*day seed for random generator */
-			rtheta_ovr = NULLI, /*spiral space direction over-ride: if both on, default*/
-			ltheta_ovr = NULLI; /*linear direction over-ride */
+long seed = 1111,  /*day seed for random generator */
+     rtheta_ovr = NULLI, /*spiral space direction over-ride: if both on, default*/
+	 ltheta_ovr = NULLI; /*linear direction over-ride */
 
-static int 	
+int 	
 	rtheta_min = 0,
 	rtheta_max = 270,
 	rtheta_num = 4,  /* default is 45 degree steps */
@@ -427,7 +429,7 @@ int fpask(void)
  * turns off fixation point
  */
 
-static int fpoff(void)
+int fpoff(void)
 {
    
    if (fpon)
@@ -457,7 +459,7 @@ static int fpoff(void)
  *
  * turns off the fixation point and the dot fields if they're on.
  */
-static int stimoff(int flag)
+int stimoff(int flag)
 {
 	if (rtheta_ovr != NULLI || ltheta_ovr != NULLI)
 	{
@@ -492,7 +494,7 @@ static int stimoff(int flag)
  *
  * initializes the stimulus array
  */
-static int initial(void)
+int initial(void)
 {
    int i;
    int ndx = 0; /* stimulus array index */
@@ -505,7 +507,9 @@ static int initial(void)
 	
 	
 	// Initialize "to_pixels();
-	initialize_pixel_conversion(x_dimension_mm, y_dimension_mm, x_resolution, y_resolution, stimz);	// Initializes to_pixels function properties
+	render_get_parameters(&f_width, &f_height, &f_framerate);
+	dprintf("render parameters: %dx%d@%d\n", f_width, f_height, (int)f_framerate);
+	initialize_pixel_conversion(x_dimension_mm, y_dimension_mm, f_width, f_height, stimz);	// Initializes to_pixels function properties
 	
 	
   /* initialize counters */
@@ -630,7 +634,7 @@ void conf_ff2d(FF2DStruct* pff2d,int i)
 	int dc_G;
 	int dc_B;
 	int islinear;
-	float degperframe = (float)speed/10/framerate;
+	float degperframe = (float)speed/10/f_framerate;
 	float area = 1.0;
 	float rad = to_pixels((float)stimr/10);
 	float den = (float)density/100; 
@@ -705,62 +709,6 @@ void conf_ff2d(FF2DStruct* pff2d,int i)
 	//dprintf("stimr = %d %d\n",stimr,(int)(100*rad));
 }
 
-/***************************** conf_ff() *********************************
- *
- * OLD FUNCTION
- * replaced by conf_ff2d(), functionallity changed considerably swe 09.28.07
- * configures the dot fields for this trial using the seeds
- * retrieved by getseeds()
- * called by newtrial()
- * 
- *
-
-int conf_ff(void)
-{
-   long npoints;  
-   float rcm; 
-   long rpix = (long)(stimz * SINE_1DEG * XRES/XDIM) * (stimr * 0.1) + 0.5;
-   const float pi = acos(-1);
-
-
-   rcm = (XDIM/XRES) * rpix;
-   npoints = (long) ((density/100.0) * (pi * rcm * rcm) );
-
-#if 0
-   if (dflhandle > 0){
-	 dflhandle = 0;
-  	} 
-   if (dfrhandle > 0){
-	 dfrhandle = 0; 
-	}
-#endif
-   vsend(MSG_CFG2DFFL, "lllllbbbb", 
-	 npoints, 
-	 coherence, 
-	 rpix, 
-	 pseed, 
-	 cseed,
-	 dotsize,
-	 fg_grey,
-	 fg_grey,
-	 fg_grey);
-   dflhandle = gethandle();
-   	    
-   vsend(MSG_CFG2DFFR, "lllllbbbb", 
-	 npoints, 
-	 coherence, 
-	 rpix, 
-	 pseed, 
-	 cseed,
-	 dotsize,
-	 fg_grey,
-	 fg_grey,
-	 fg_grey);
-   dfrhandle = gethandle();
-   return 0; 
-
-}
-*/
 
 /****************************** next_dotf() *******************************
  * 
@@ -768,7 +716,7 @@ int conf_ff(void)
  * resets the duration and isi counters as well
  */ 
 
-static int next_dotf(void)
+int next_dotf(void)
 {
   /* OLD COMMANDS:
    * calculate stimulus position in pixels 
@@ -784,8 +732,8 @@ static int next_dotf(void)
       divide by 2 because of the extra step necessary
       in the state list for the auxiliary 
       (fix_led control) state set to work  */
-    durcnt = framerate*duration/1000;	/* number of frames for each stimulus */	
-    isicnt = framerate*isi/1000;		/* number of frames for each isi */
+    durcnt = f_framerate*duration/1000;	/* number of frames for each stimulus */	
+    isicnt = f_framerate*isi/1000;		/* number of frames for each isi */
 
 
    if (ltheta_ovr != NULLI && rtheta_ovr !=NULLI)
@@ -880,7 +828,7 @@ static int next_dotf(void)
  * figures out the next stimulus type in the sequence
  */ 
 
-static int next_stim(void)
+int next_stim(void)
 {
    int index, rindx,
    active = 0;
@@ -938,7 +886,7 @@ static int next_stim(void)
  * opens fixation window (calls a bunch of library functions from REX to
  * do so)
  */
-static int winon(long xsiz, long ysiz)
+int winon(long xsiz, long ysiz)
 {	
 	wd_src_pos(WIND0, WD_DIRPOS, 0, WD_DIRPOS, 0); 
 	wd_pos(WIND0, (long)fixx, (long)fixy);
@@ -965,7 +913,7 @@ int wincheck()
  * 
  * closes up shop
  */
-static int alloff(void)
+int alloff(void)
 {
   wd_cntrl(WIND0, WD_OFF);  /*this turns off the fixation window */
   fpoff();  /*this turns off the fixation point */
@@ -981,7 +929,7 @@ static int alloff(void)
  *
  * scores the trial correct or incorrect; counts down number of trials
  */
-static int trlcount(int flag)
+int trlcount(int flag)
 {
   score(flag);  /* if TRUE, REX wants to know about the reward */
   if (flag) remain --; /* if TRUE, the trial's complete so count it */
@@ -989,16 +937,6 @@ static int trlcount(int flag)
 }
 
 
-/***************************** killslave() ********************************
- *
- * sends MSG_DONE on nonzero argument
- *
-static int killslave(int flag)
-{
-   if (flag) send(MSG_DONE);
-   return(flag);
-}
-*/
 
 /************************************************************************
  * Ecode-returning functions for data recording. 
@@ -1035,7 +973,7 @@ int dayseedcd(void) {printf("%d\n",HEADBASE+seed); return(HEADBASE + seed);}
  * The next are used on the fly.
  *************************************************************************/
 
-static int ovrcd(void)
+int ovrcd(void)
 {
   /* if either over-ride is set, drop an ECODE to note that */
   if (rtheta_ovr != NULLI || ltheta_ovr != NULLI) 
@@ -1048,7 +986,7 @@ static int ovrcd(void)
  * 
  * prints book-keeping information
  */
-static void pr_info(void)
+void pr_info(void)
 {
    int i;
    //OLD BUFFER COMMANDS REMOVED by swe 10.01.07
@@ -1466,258 +1404,5 @@ begin	first:
 abort	list:
 		trlend blkdone exit
 }
-
-
-
-
-
-
-/*
-%%
-id 121  unique paradigm identifier
-restart rinitf
-main_set {
-status ON
-begin	first:
-		code STARTCD
-		rl 0
-		to pause1
-	pause1:
-		to pause2 on +PSTOP & drinput
-		to setbg on -PSTOP & drinput
-	pause2:
-		code PAUSECD
-		to setbg on -PSTOP & drinput	
-	setbg:
-		do setbg()
-		to setup
-	setup:
-		time 1000
-		do initial()
-		to headcd
-	headcd:
-		code HEADCD
-		to fpxcd
-	fpxcd:
-		do fpxcd()
-		to fpycd
-	fpycd:
-		do fpycd()
-		to stxcd
-	stxcd:
-		do stxcd()
-		to stycd
-	stycd:
-		do stycd()
-		to strcd
-	strcd:
-		do strcd()
-		to stzcd
-	stzcd:
-		do stzcd()
-		to rtmincd
-	rtmincd:
-		do rtmincd()
-		to rtmaxcd
-	rtmaxcd:
-		do rtmaxcd()
-		to rtnumcd
-	rtnumcd:
-		do rtnumcd()
-		to ltmincd
-	ltmincd:
-		do ltmincd()
-		to ltmaxcd
-	ltmaxcd:
-		do ltmaxcd()
-		to ltnumcd
-	ltnumcd:
-		do ltnumcd()
-		to spdcd
-	spdcd:
-		do spdcd()
-		to nptcd
-	nptcd:
-		do nptcd()
-		to ptszcd
-	ptszcd:
-		do ptszcd()
-		to cohcd
-	cohcd:
-		do cohcd()
-		to fgcd
-	fgcd:
-		do fgcd()
-		to bgcd
-	bgcd:
-		do bgcd()
-		to numcd
-	numcd: 
-		do numcd()
-        to durcd
-	durcd:
-		do durcd()
-		to isicd
-	isicd:
-		do isicd() 
-		to loop
-	loop:
-		time 10
-		to pause3
-	pause3:
-		to pause4 on +PSTOP & drinput
-		to next on -PSTOP & drinput
-	pause4:
-		code PAUSECD
-		to next on -PSTOP & drinput
-	next:
-		do newtrial()
-		time 10
-		to ovrcd
-	ovrcd:
-		do ovrcd()
-		to iti
-	iti:
-		time 1500	 rest of the ISI 
-		to fpon
-	fpon:
-		code FIXASK
-		do fpask()
-		to winon
-	winon:
-		code FPONCD
-		time 20
-		do winon(10,10)
-		to grace
-	grace:
-		time 3000
-		to fixtim on -WD0_XY & eyeflag
-		to off
-	off:
-		do alloff()
-		to loop
-	fixtim:
-		time 250
-		rl 20
-		do wincheck()     
-		to noise on +WD0_XY & eyeflag don't punish for brkfix
-		to trstart
-	noise:
-		do alloff()
-		to loop
-	trstart:
-		code TRLSTART	
-	    to stimloop
-    stimloop:
-		do next_stim()  choose the next stimulus 
-		to stim
-	stim:
-		do next_dotf()  send the show messages 
-		to wait1
-	wait1:
-		to check on 1 % msg_pending
-	check:
-		chkstim()
-		to punish on +WD0_XY & eyeflag
-		to went
-	went:
-		code STIMON
-		rl 60
-		to delay
-	delay:
-		to punish on +WD0_XY & eyeflag
-		to stimdone on 0 ? durcnt
-		to delay2
-	delay2:
-		to delay avoids complete recursion
-	stimdone:
-		code STIMOFF
-		do stimoff(1)
-		rl 30
-		to isi
-	isi:
-		to punish on +WD0_XY & eyeflag
-		to stimcount on 0 ? isicnt
-		to isi2
-	isi2:
-		to punish on +WD0_XY & eyeflag
-		to isi avoids complete recursion
-	stimcount:
-		to good on -TRUE & stimcnt
-		to stimloop     
-	good:
-		code FPOFFCD
-		do fpoff()
-		rl 10
-		to reward
-	reward:
-		code REWCD
-		do dio_on(REW)
-		time 50
-		to rewoff
-	rewoff:
-		do dio_off(REW)
-		to score
-	score:
-		do trlcount(1)
-	    to trlend
-	punish:
-		code BREAKFIXCD
-		do alloff()
-		rl 10
-		to beep
-	beep:
-		do dio_on(BEEP)	
-		time 100
-		to bpoff	
-	bpoff:
-		do dio_off(BEEP)
-		to timout
-	timout:
-		do trlcount(0)
-		time 1000
-		to qryerr
-	qryerr:
-		do qryerr()
-		to trlend
-	trlend:
-		do alloff()
-		to blkdone on -TRUE & remain
-		to loop
-	blkdone:
-		rl 0
-		to loop on +TRUE & remain
-	exit:
-		do killslave(0)
-		to loop
-
-abort	list:
-		trlend blkdone exit
-}
-*/
-
-
-
-/* now for the fixation LED control state set; this controls the
-  fixation monitoring LED.  To turn on monitoring, select fix_led
-  in the st menu and set it equal to 1. To turn it off, select
-  fix_led and set it to 0 (false).  This turns on an LED whenever 
-  the critter's fixating;  turns off the LED whenever the eye's not
-  in the window. 
-
-DISABLED 6/4/98 for debugging. KHB.
-
-fix_set {
-status ON
-begin isledon:
-		to led_off on 1 = fix_led
-      led_on:
-      		do dio_on(FIX_LED)  	
-		to led_off on 0 = window_on
-      led_off:
-		do dio_off(FIX_LED)
-		to led_on on 1 = window_on
-}	
-*/
 
 
