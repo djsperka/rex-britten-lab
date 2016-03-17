@@ -1,0 +1,28 @@
+djs 5-28-15
+
+This folder contains source for the Britten Lab. The code is used in conjunction 
+with REX and requires modifications to the Makefiles so the REX variable points
+to the correct REX root folder. 
+
+libbrit - this folder contains source files for a library of utilities. The utilities
+          are used heavily in REX paradigms, and so are built here. 
+		  
+sset - this folder contains lab-specific paradigms and headers. In the past we've
+       put all this in the rex sset folder. That's fine, until you want to change REX
+	   versions (admittedly not a common practice). As long as the Makefile 
+	   has the correct reference to the rex root folder (make sure the var REX is set
+	   correctly), then building here is the same as building within the REX sset 
+	   folder:
+	   
+	   make sf=whatever
+	   
+	   To make a paradigm that has extra source file
+	   
+	   make sf=whatever LSRC=src.c
+	   
+	   
+	   To make a paradigm that has two extra source files
+	   
+	   make sf=whatever LSRC="src1.c src2.c"
+
+
