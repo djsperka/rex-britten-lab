@@ -55,7 +55,7 @@ int f_handleCount=0;		// used in my_check_for_handles()
  * Global variables.
  **********************************************************************/
 
-int dots_on = 0;		   /* controlled by button 1 */
+int dots_on = 1;		   /* controlled by button 1 */
 int joystick_enabled = 1;  /* NOT under button control! */
 
 int window_on=0;   /* can't make this static or compiler chokes */
@@ -231,7 +231,7 @@ void get_ff2d_param(FF2DStruct* pff2d)
 	    if (!get_joystick_response(&xresponse, &yresponse))
 		{	
 			// djs xresponse has a sign inversion. 
-		    joy_x = joy_x - (xresponse * f_joyPixPerFrame);
+		    joy_x = joy_x + (xresponse * f_joyPixPerFrame);
 			joy_y = joy_y + (yresponse * f_joyPixPerFrame);
 			if (f_joyDebug  & JOYDEBUG_RESPONSE)
 			{
