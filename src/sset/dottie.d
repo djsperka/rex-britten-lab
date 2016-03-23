@@ -66,9 +66,12 @@ static int dir = 0;
 static int dirstep = 45;
 static int ptsiz = 2;
 static int fpsiz = 2;
+static int fpwinsize = 20;
 static int fpred = 255;
 static int fpgreen = 0;
 static int fpblue = 0;
+static int f_reward_time = 50;
+static int f_reward_random = 0;
 
 /************************************************************************
  * Declaration of statelist variables.
@@ -339,6 +342,10 @@ int initial(void)
 	joy_x = joy_y = 0;
 	f_fpHandle = f_ff2dHandle = f_handleCount = 0;
 	setbg();
+	
+	/* Set reward time */
+	set_times("reward", (long)f_reward_time, (long)f_reward_random);
+	
 	return 0;
 }
 
@@ -406,11 +413,11 @@ int dotoff(void)
  * 
  */
 
-int winon(long xsiz, long ysiz)
+int winon()
 {
 	wd_src_pos(WIND0, WD_DIRPOS, 0, WD_DIRPOS, 0);
 	wd_pos(WIND0, (long)fixx, (long)fixy);
-	wd_siz(WIND0, (long)xsiz, (long)ysiz);
+	wd_siz(WIND0, (long)fpwinsize, (long)fpwinsize);
 	wd_cntrl(WIND0, WD_ON);
 	wd_src_check(WIND0, WD_SIGNAL, EYEH_SIG, WD_SIGNAL, EYEV_SIG);
 	return 0;
@@ -535,6 +542,9 @@ VLIST state_vl[] = {
   "fp_x",		&fixx,	NP, NP,	0, ME_DEC,
   "fp_y",		&fixy,	NP, NP,	0, ME_DEC,
   "fp_size",		&fpsiz,	NP, NP,	0, ME_DEC,     
+  "fp_window", &fpwinsize, NP, NP, 0, ME_DEC,
+  "reward", &f_reward_time, NP, NP, 0, ME_DEC,
+  "reward_random", &f_reward_random, NP, NP, 0, ME_DEC,
   "duration",	        &msec, NP, NP, 0, ME_DEC, 
   "bg(0-255)", 	        &bg, NP, NP, 0, ME_DEC, 
   "CRT_dist(mm)",	&stimz, NP, NP, 0, ME_DEC,
@@ -662,7 +672,7 @@ begin	first:
 		to winon on 1 % my_check_for_went
 	winon:
 		code FPONCD
-		do winon(20,20)
+		do winon()
 		time 20
 		to grace
 	grace:
