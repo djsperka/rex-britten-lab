@@ -48,6 +48,7 @@
 #define EYE_WINDOW_ON				0x2
 #define EYE_WINDOW_OFF				0x4
 #define EYE_WINDOW_MOVE				0x8
+#define EYE_WINDOW_INITON           (EYE_WINDOW_INIT|EYE_WINDOW_ON)
 
 /*
  * This is the eye window identifier
@@ -68,6 +69,9 @@ int f_trial_index;				/* index of target position for current trial */
 RTGenerator *f_prtgen = NULL;
 int f_all_done = 0;				/* Set to 1 by my_trial_init to indicate all trials have been completed. */
 int f_never = 0;
+int f_width = 0;
+int f_height = 0;
+double f_framerate = 0;
 
 /*
  * state_vl menu
@@ -193,14 +197,12 @@ NS,
 
 char hm_timing[] = "";
 
-int f_frames_per_second = 85;			/* frame rate for render */
 char f_local_addr[32]="192.168.1.1";	/* ip address of local machine */
 char f_remote_addr[32]="192.168.1.2";	/* ip address of render machine */
 int f_remote_port=2000;					/* port to use on render machine */
 
 
 VLIST comm_vl[] = {
-"frame_rate(1/s)", &f_frames_per_second, NP, NP, 0, ME_DEC,
 "local_ip", f_local_addr, NP, NP, 0, ME_STR,
 "render_host_ip", f_remote_addr, NP, NP, 0, ME_STR,
 "render_port", &f_remote_port, NP, NP, 0, ME_DEC,
@@ -268,18 +270,7 @@ void local_init(void)
 	dprintf("Look for render host at %s:%d\n", f_remote_addr, f_remote_port);
 	status = init_tcpip(f_local_addr, f_remote_addr, f_remote_port, 0);
 
-	// initialize pixel conversion
-	dprintf("Screen dimensions (see lcalib.h): %dx%d (mm)\n", (int)x_dimension_mm, (int)y_dimension_mm);
-	dprintf("Screen resolution (see lcalib.h): %dx%d (pixels)\n", (int)x_resolution, (int)y_resolution);
-	dprintf("Screen distance (see lcalib.h): %d (mm)\n", (int)f_screen_distance_MM);
-	if (initialize_pixel_conversion(x_dimension_mm, y_dimension_mm, x_resolution, y_resolution, f_screen_distance_MM))
-	{
-		dprintf("ERROR in initialize_pixel_conversion: \n"
-				"x,y dimensions=(%d, %d)\n"
-				"x,y resolution=(%d, %d)\n"
-				"screen distance=%d\n", (int)x_dimension_mm, (int)y_dimension_mm, (int)x_resolution, (int)y_resolution, (int)f_screen_distance_MM);
-	}
-	
+
 }
 
 
@@ -297,6 +288,21 @@ int my_render_init()
 
 	dprintf("Initializing render\n");
 
+	
+	// Get resolution and frame rate, initialize pixel conversion
+	render_get_parameters(&f_width, &f_height, &f_framerate);
+	dprintf("Screen dimensions (see lcalib.h): %dx%d (mm)\n", (int)x_dimension_mm, (int)y_dimension_mm);
+	dprintf("Screen resolution (from render) : %dx%d (pixels)\n", f_width, f_height);
+	dprintf("Screen distance (from menus)    : %d (mm)\n", (int)f_screen_distance_MM);
+	if (initialize_pixel_conversion(x_dimension_mm, y_dimension_mm, f_width, f_height, f_screen_distance_MM))
+	{
+		dprintf("ERROR in initialize_pixel_conversion: \n"
+				"x,y dimensions=(%d, %d)\n"
+				"x,y resolution=(%d, %d)\n"
+				"screen distance=%d\n", (int)x_dimension_mm, (int)y_dimension_mm, f_width, f_height, (int)f_screen_distance_MM);
+	}
+	
+	
 	/*
 	 *  seed random number generator if necessary
 	 */
@@ -500,7 +506,7 @@ int my_trial_init()
 	}
 	else
 	{
-		dprintf("Trial type %d: target angle %d\n", f_trial_index, ANGLE_DEG(f_trial_index)); 
+		dprintf("Trial type %d: target angle(*100) %d\n", f_trial_index, (int)(100*ANGLE_DEG(f_trial_index))); 
 
 		/*
 		 * bcodes
@@ -581,11 +587,11 @@ int my_trial_done(int icorrect)
 	switch(icorrect)
 	{
 		case TRIAL_DONE_CORRECT:
-			dprintf("Correct answer.(answer tallies not implemented!)\n");
+			dprintf("Correct answer.\n");
 			f_prtgen->mark(f_prtgen, f_trial_index);
 			break;
 		case TRIAL_DONE_NOFIX:
-			dprintf("Did not fixate at target location. (answer tallies not implemented!)\n");
+			dprintf("Did not fixate at target location.\n");
 			break;
 		case TRIAL_DONE_NOANSWER:
 			dprintf("No answer given!\n");
@@ -685,7 +691,7 @@ int my_eye_window(int iflag)
 	
 	if (iflag & EYE_WINDOW_MOVE)
 	{
-		if (f_verbose & DEBUG_BIT) dprintf("my_eye_window(EYE_WINDOW_MOVE): %d, %d\n", (int)(to_degrees(f_fixpt.xorigin)*10.0), (int)(to_degrees(f_fixpt.yorigin)*10.0));
+		if (f_verbose & DEBUG_BIT) dprintf("my_eye_window(EYE_WINDOW_MOVE): %d, %d\n", (long)(f_ptarget_x[f_trial_index]*10.0), (long)(f_ptarget_y[f_trial_index]*10.0));
 		wd_pos(EYE_WINDOW_ID, (long)(f_ptarget_x[f_trial_index]*10.0), (long)(f_ptarget_y[f_trial_index]*10.0));
 		wd_siz(EYE_WINDOW_ID, (long)(f_target_window*10.0), (long)(f_target_window*10.0));
 	}
@@ -748,7 +754,6 @@ int all_trials_done()
 
 
 
-
 /* REX state set starts here 
  * djs 5-13-09 id=501 
  */
@@ -796,7 +801,7 @@ begin	first:
 	fixpt_window:
 		code FPONCD
 		time 20
-		do my_eye_window(EYE_WINDOW_INIT | EYE_WINDOW_ON)
+		do my_eye_window(EYE_WINDOW_INITON)
 		to fixpt_acq
 	fixpt_acq:
 		time 4000			/* f_fixpt_acq_time */
@@ -857,7 +862,7 @@ begin	first:
 		to target_no_answer
 	target_fix:
 		time 200		/* f_target_fix_time */
-		to target_fix_fail on -WD0_XY & eyeflag
+		to target_fix_fail on +WD0_XY & eyeflag
 		to target_fix_success
 	target_fix_success:
 		code CORRECTCD
