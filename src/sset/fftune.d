@@ -71,6 +71,13 @@ int f_trial_frames_per_stim = 0;/* each stim gets this many updates. I'th stim t
 int f_went_status = 0;
 
 /*
+ * Render tells us the resolution and frame rate in use.
+ */
+
+int f_width, f_height;
+double f_framerate;
+
+/*
  * Render structure for dot, and (empty) array of FF2D's
  */
  
@@ -305,14 +312,12 @@ NS,
 
 char hm_timing[] = "";
 
-int f_frames_per_second = 85;			/* frame rate for render */
 char f_local_addr[32]="192.168.1.1";	/* ip address of local machine */
 char f_remote_addr[32]="192.168.1.2";	/* ip address of render machine */
 int f_remote_port=2000;					/* port to use on render machine */
 
 
 VLIST comm_vl[] = {
-"frame_rate(1/s)", &f_frames_per_second, NP, NP, 0, ME_DEC,
 "local_ip", f_local_addr, NP, NP, 0, ME_STR,
 "render_host_ip", f_remote_addr, NP, NP, 0, ME_STR,
 "render_port", &f_remote_port, NP, NP, 0, ME_DEC,
@@ -462,7 +467,7 @@ void my_bcodes()
 	bcode_int(CH_ACQ_NOISE_TIME, f_acq_noise_time);
 	bcode_int(CH_INTERTRIAL_TIME, f_intertrial_time);
 	bcode_int(CH_STIMULUS_TIME, f_stimulus_time);
-	bcode_int(CH_FRAMES_PER_SECOND, f_frames_per_second);
+	bcode_int(CH_FRAMES_PER_SECOND, (int)f_framerate);
 }
 
 
@@ -490,15 +495,6 @@ void init_steering(void)
 	// initialize tcpip - must only do this OR gpib - NOT BOTH!!!!
 	status = init_tcpip(f_local_addr, f_remote_addr, f_remote_port, 1);
 
-	// initialize pixel conversion
-	if (initialize_pixel_conversion(x_dimension_mm, y_dimension_mm, x_resolution, y_resolution, f_screen_distance_MM))
-	{
-		dprintf("ERROR in initialize_pixel_conversion: \n"
-				"x,y dimensions=(%d, %d)\n"
-				"x,y resolution=(%d, %d)\n"
-				"screen distance=%d\n", (int)x_dimension_mm, (int)y_dimension_mm, (int)x_resolution, (int)y_resolution, (int)f_screen_distance_MM);
-	}
-	
 }
 
 
@@ -516,6 +512,25 @@ int my_render_init()
 
 	dprintf("Initializing...\n");
 
+	
+	// fetch render parameters -- resolution and frame rate
+	render_get_parameters(&f_width, &f_height, &f_framerate);
+	dprintf("render parameters: %dx%d@%d\n", f_width, f_height, (int)f_framerate);
+
+	
+	
+	// initialize pixel conversion
+	if (initialize_pixel_conversion(x_dimension_mm, y_dimension_mm, f_width, f_height, f_screen_distance_MM))
+	{
+		dprintf("ERROR in initialize_pixel_conversion: \n"
+				"x,y dimensions=(%d, %d)\n"
+				"x,y resolution=(%d, %d)\n"
+				"screen distance=%d\n", (int)x_dimension_mm, (int)y_dimension_mm, (int)f_width, (int)f_height, (int)f_screen_distance_MM);
+	}
+	
+
+	
+	
 	/* 
 	 * Dump bcodes to efile. These are all the menu parameters. 
 	 */
@@ -913,7 +928,7 @@ int my_trial_init()
 		 */
 		 
 		f_trial_frame_counter = 0;
-		f_trial_frames_per_stim = (int)((float)f_stimulus_time*f_frames_per_second/1000.0f);
+		f_trial_frames_per_stim = (int)((float)f_stimulus_time*f_framerate/1000.0f);
 		if (f_verbose & DEBUG_TRIAL_BIT)
 		{
 			dprintf("Stim time is %d frames for each (%d) stim.\n", f_trial_frames_per_stim, f_nstim_per_fixation);
