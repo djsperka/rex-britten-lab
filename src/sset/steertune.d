@@ -132,6 +132,13 @@ int f_gp_handle;
 int f_fixpt_handle;
 
 
+/* 
+ * screen properties from render
+ */
+
+int f_width, f_height;
+double f_framerate;
+
 /*
  * Experimental parameters.
  * These are set in the dialogs and used to control the expt. 
@@ -324,16 +331,7 @@ void init_steering(void)
 	status = init_tcpip(f_local_addr, f_remote_addr, f_remote_port, 0);
 
 	f_going = 0;
-
-	// initialize pixel conversion
-	if (initialize_pixel_conversion(x_dimension_mm, y_dimension_mm, x_resolution, y_resolution, f_screen_distance_MM))
-	{
-		dprintf("ERROR in initialize_pixel_conversion: \n"
-				"x,y dimensions=(%d, %d)\n"
-				"x,y resolution=(%d, %d)\n"
-				"screen distance=%d\n", (int)x_dimension_mm, (int)y_dimension_mm, (int)x_resolution, (int)y_resolution, (int)f_screen_distance_MM);
-	}
-
+	
 	// seed random number generator
 	ivunif(f_seed, 1);
 	
@@ -352,6 +350,23 @@ int my_render_init()
 	int status=0;
 	float fovy;
 
+	
+	// fetch render parameters -- resolution and frame rate
+	render_get_parameters(&f_width, &f_height, &f_framerate);
+	dprintf("render parameters: %dx%d@%d\n", f_width, f_height, (int)f_framerate);
+	
+	
+	// initialize pixel conversion
+	if (initialize_pixel_conversion(x_dimension_mm, y_dimension_mm, f_width, f_height, f_screen_distance_MM))
+	{
+		dprintf("ERROR in initialize_pixel_conversion: \n"
+				"x,y dimensions=(%d, %d)\n"
+				"x,y resolution=(%d, %d)\n"
+				"screen distance=%d\n", (int)x_dimension_mm, (int)y_dimension_mm, (int)f_width, (int)f_height, (int)f_screen_distance_MM);
+	}	
+	
+	
+	
 	// zero out handles and initialize counters.
 
 	f_gp_handle = f_fixpt_handle = 0;
