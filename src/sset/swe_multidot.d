@@ -194,6 +194,11 @@ static int
 	bg = 0;
 	remain;
 
+int f_reward_preset = 50;
+int f_reward_random = 0;
+int f_window_size_tenths = 30;
+int f_fpcolor[3] = { 255, 0, 0 };
+	
 
 /* TCP/IP info for render */
 char local_addr[16] = "192.168.1.1";
@@ -363,9 +368,9 @@ int conf_fp(DotStruct *pdot)
 	pdot->xsize = siz;
 	pdot->ysize = siz;
 	pdot->depth = 10;
-	pdot->r = 255;
-	pdot->g = 0;
-	pdot->b = 0;
+	pdot->r = f_fpcolor[0];
+	pdot->g = f_fpcolor[1];
+	pdot->b = f_fpcolor[2];
 	pdot->a = 0;
 	
 	//vsend(MSG_CFGPT, "bbbbb", CIRCLE, 8, 255, bg_grey, bg_grey); OLD FUNCTION
@@ -580,6 +585,9 @@ int newtrial(void)
 
 	stimcnt = stim_trial; /*initialize stimulus count parameter*/
 	
+	/* set times in certain states e.g. reward */
+	set_times("reward", (long)f_reward_preset, (long)f_reward_random);
+	
 	return 0;
 }
 
@@ -668,62 +676,6 @@ void conf_ff2d(FF2DStruct* pff2d,int i)
 	//dprintf("stimr = %d %d\n",stimr,(int)(100*rad));
 }
 
-/***************************** conf_ff() *********************************
- *
- * OLD FUNCTION
- * replaced by conf_ff2d(), functionallity changed considerably swe 09.28.07
- * configures the dot fields for this trial using the seeds
- * retrieved by getseeds()
- * called by newtrial()
- * 
- *
-
-int conf_ff(void)
-{
-   long npoints;  
-   float rcm; 
-   long rpix = (long)(stimz * SINE_1DEG * XRES/XDIM) * (stimr * 0.1) + 0.5;
-   const float pi = acos(-1);
-
-
-   rcm = (XDIM/XRES) * rpix;
-   npoints = (long) ((density/100.0) * (pi * rcm * rcm) );
-
-#if 0
-   if (dflhandle > 0){
-	 dflhandle = 0;
-  	} 
-   if (dfrhandle > 0){
-	 dfrhandle = 0; 
-	}
-#endif
-   vsend(MSG_CFG2DFFL, "lllllbbbb", 
-	 npoints, 
-	 coherence, 
-	 rpix, 
-	 pseed, 
-	 cseed,
-	 dotsize,
-	 fg_grey,
-	 fg_grey,
-	 fg_grey);
-   dflhandle = gethandle();
-   	    
-   vsend(MSG_CFG2DFFR, "lllllbbbb", 
-	 npoints, 
-	 coherence, 
-	 rpix, 
-	 pseed, 
-	 cseed,
-	 dotsize,
-	 fg_grey,
-	 fg_grey,
-	 fg_grey);
-   dfrhandle = gethandle();
-   return 0; 
-
-}
-*/
 
 /****************************** next_dotf() *******************************
  * 
@@ -733,13 +685,7 @@ int conf_ff(void)
 
 static int next_dotf(void)
 {
-  /* OLD COMMANDS:
-   * calculate stimulus position in pixels 
-   long xpos = xpix(stimx, stimz);  
-   long ypos = ypix(stimy, stimz);*/
 
-   /* OLD COMMANDS: get degrees per second (speed)*/
-   //long dps = (long) (1000.0 *(stimz * speed/10.0) * SINE_1DEG * XRES/XDIM);
    long width = 0; /* width of directions * 100  */
 
    /* reset counters for duration and isi; 
@@ -762,17 +708,6 @@ static int next_dotf(void)
 			stimlist[OVR].islinear = 0;
 			conf_ff2d(&f_ff2dStruct[OVR],OVR);
 			render_update(f_ff2dHandle[OVR], &f_ff2dStruct[OVR], sizeof(FF2DStruct), HANDLE_ON);
-			/* OLD COMMANDS
-			vsend(MSG_SHOW, "bblllll", 
-			dfrhandle, 
-			0, 
-			dps,
-			(rtheta_ovr * 100),
-			width, 
-			xpos, 
-			ypos);
-	 		ffhandle = dfrhandle;
-	 		*/
 	 	}
 		else if (ltheta_ovr != NULLI) 
 	 	{
@@ -780,17 +715,6 @@ static int next_dotf(void)
 			stimlist[OVR].islinear = 1;
 			conf_ff2d(&f_ff2dStruct[OVR],OVR);
 			render_update(f_ff2dHandle[OVR], &f_ff2dStruct[OVR], sizeof(FF2DStruct), HANDLE_ON);
-	 		/* OLD COMMANDS
-	 		vsend(MSG_SHOW, "bblllll", 
-		    dflhandle, 
-		    0, 
-		    dps, 
-		    (ltheta_ovr * 100),
-		    width, 
-		    xpos, 
-		    ypos);
-			ffhandle = dflhandle;
-			*/
 	 	}
 	}
 	else
@@ -798,34 +722,6 @@ static int next_dotf(void)
 		//dprintf("nextdot= %d\t%d\n",stimindex,f_ff2dHandle[stimindex]);
 		conf_ff2d(&f_ff2dStruct[stimindex],stimindex);
 		render_update(f_ff2dHandle[stimindex], &f_ff2dStruct[stimindex], sizeof(FF2DStruct), HANDLE_ON);
-		
-    	/* OLD COMMANDS
-    	 if (sp->islinear)
-		 {
-		 	vsend(MSG_SHOW, "bblllll",
-			dflhandle, 
-			0, 
-			dps, 
-			(long)(sp->theta * 100), 
-			width, 
-			xpos, 
-			ypos);
-			ffhandle = dflhandle;
-			
-		}
-		else
-		{
-			vsend(MSG_SHOW, "bblllll", 
-			dfrhandle, 
-			0, 
-			dps, 
-			(long)(sp->theta * 100),
-			width, 
-			xpos, 
-			ypos);
-	  		ffhandle = dfrhandle;
-	  		
-		}*/
      }
    
    /*turn on the stimulus on flag */
@@ -901,11 +797,11 @@ static int next_stim(void)
  * opens fixation window (calls a bunch of library functions from REX to
  * do so)
  */
-static int winon(long xsiz, long ysiz)
+static int winon()
 {	
 	wd_src_pos(WIND0, WD_DIRPOS, 0, WD_DIRPOS, 0); 
 	wd_pos(WIND0, (long)fixx, (long)fixy);
-	wd_siz(WIND0, (long)xsiz, (long)ysiz);
+	wd_siz(WIND0, (long)f_window_size_tenths, (long)f_window_size_tenths);
 	wd_cntrl(WIND0, WD_ON);
 	wd_src_check(WIND0,WD_SIGNAL, EYEH_SIG, WD_SIGNAL, EYEV_SIG);	
 	
@@ -951,17 +847,6 @@ static int trlcount(int flag)
   return 0;
 }
 
-
-/***************************** killslave() ********************************
- *
- * sends MSG_DONE on nonzero argument
- *
-static int killslave(int flag)
-{
-   if (flag) send(MSG_DONE);
-   return(flag);
-}
-*/
 
 /************************************************************************
  * Ecode-returning functions for data recording. 
@@ -1013,10 +898,7 @@ static int ovrcd(void)
 static void pr_info(void)
 {
    int i;
-   //OLD BUFFER COMMANDS REMOVED by swe 10.01.07
-   //extern char outbuf[];
-   //setbuf(stdout, &outbuf);
-   
+
    /* print out the header information: here
     * index #, linear or no, dir, status, and number done
     */ 
@@ -1041,27 +923,8 @@ static void pr_info(void)
     * number of trials done followed by number of errors */
    printf("%d trials, %d errors\n", (nstim * nreps)/stim_trial - remain, errcnt);
 
-   /* clear out the buffers */
-   //fflush(stdout);
-   //setbuf(stdout, 0);
 }
 
-/**************************** n_exlist() **********************************
- *
- * enables 't e' requests to print bookeeping info
- *
-void n_exlist(char *vstr)
-{
-   switch(*vstr)
-     {
-     case 't':	 type a list 
-	  pr_info();
-	  break;
-     default:
-       badverb();  this is REX error message call 
-       break;
-     }
-}*/
 
 /************************************************************************
  * Ecode-returning functions for data recording. The order in which these
@@ -1112,9 +975,6 @@ char hm_stim[] = "";
 
 VLIST state_vl[] = {
    "day_seed",		&seed, NP, NP, 0, ME_DEC,
-   "fp_x",		&fixx,	NP, NP,	0, ME_DEC,
-   "fp_y",		&fixy,	NP, NP,	0, ME_DEC,
-   "fp_size",	&fpsiz, NP, NP, 0, ME_DEC,
    "stim_x",		&stimx,	NP, NP,	0, ME_DEC,
    "stim_y",		&stimy,	NP, NP,	0, ME_DEC,
    "stim_r",		&stimr,	NP, NP,	0, ME_DEC,
@@ -1140,9 +1000,23 @@ VLIST state_vl[] = {
 char hm_sv_vl[] = "";
 
 
+VLIST fix_vl[] = 
+{
+   "fp_x",		&fixx,	NP, NP,	0, ME_DEC,
+   "fp_y",		&fixy,	NP, NP,	0, ME_DEC,
+   "fp_size",	&fpsiz, NP, NP, 0, ME_DEC,
+   "fp_window(tenths)", &f_window_size_tenths, NP, NP, 0, ME_DEC,
+   "fp_red(0-255)", &f_fpcolor[0], NP, NP, 0, ME_DEC,
+   "fp_green(0-255)", &f_fpcolor[1], NP, NP, 0, ME_DEC,
+   "fp_blue(0-255)", &f_fpcolor[2], NP, NP, 0, ME_DEC,
+};
+
+char hm_fix_vl[] = "";
+
 MENU umenus[] = {
 {"state_vars", &state_vl, NP, NP, 0, NP, hm_sv_vl}, 
 {"separator", NP}, 
+{"fix_params", &fix_vl, NP, NP, 0, NP, hm_fix},
 {"stim_params", &stim_vl, NP, NP, 0, NP, hm_stim},
 {NS},
 };
@@ -1312,7 +1186,7 @@ begin	first:
 	winon:
 		code FPONCD
 		time 20
-		do winon(20,20)
+		do winon()
 		to grace
 	grace:
 		time 3000

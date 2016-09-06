@@ -54,19 +54,6 @@
 
 #include "ivunif.c"	 /*the random-number generator */
 
-/* OLD COMMANDS
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <math.h>
-#include <i86.h>
-#include "ldev.h"	hardware device defines 
-#include "lcode.h"	Ecodes 
-#include "calib.h"  	SGI stimulus display parameters 
-#include "render.h"	 defines for graphics objects 
-#include "locfunc.h"	 local, commonly used functions 
-#include "msg.h"	messaging functions
-#include "ivunif.c"	 the random-number generator */
 
 #define MAXLIST 75   /* maximum number of stimuli possible:
 			this limits it to either 5 degree
@@ -163,7 +150,12 @@ unsigned char fphandle,
 	ffhandle;
 int fprh, ffrh;            /* realization handles */
 
-//extern Msg *msg;
+
+/* djs add new controls 9/5/16 */
+int f_reward_preset = 50;
+int f_reward_random = 0;
+int f_window_size_tenths = 30;
+
 
 /************************************************************************
  * Declaration of statelist variables.
@@ -410,16 +402,6 @@ int fpask(void)
 	render_frame(0);
 	fpon = 1;
 	
-	/* OLD COMMANDS
-	vsend(MSG_SHOW, "bbllll", fphandle, 0,
-		xpix(fixx, stimz),
-		ypix(fixy, stimz),
-		0,0);
-	fprh = gethandle();
-	send(MSG_FRAME);
-	fpon = 1;	
-	*/
-	
 	return 0;
 }
 
@@ -441,13 +423,6 @@ int fpoff(void)
 		fpon = 0;
 		
 		ecode(FPOFFCD);
-   		
-      /* OLD COMMANDS
-      vsend(MSG_UNSHOW, "bb", fphandle, fprh);
-      send(MSG_FRAME);
-      getmsg();
-      fpon = 0;
-      */
    }
 
    return 0;
@@ -470,12 +445,6 @@ int stimoff(int flag)
 	{  
     	render_onoff(&f_ff2dHandle[stimindex], HANDLE_OFF, ONOFF_NO_FRAME);
     	render_frame(1);
-      /* OLD COMMANDS
-      vsend(MSG_UNSHOW, "bb", ffhandle, ffrh);
-      send(MSG_FRAME);
-      getmsg();
-      dfon = 0;
-      */
     }
 
   if (flag)
@@ -516,9 +485,6 @@ int initial(void)
    errcnt = 0;
    gtrcnt = 0;
    stimcnt = stim_trial;
-   
-   /* free up any old handles lying around
-   send(MSG_FREE); */
    
    /*initialize random generator with today's seed*/
    if (!seedflg)
@@ -597,7 +563,10 @@ int newtrial(void)
 	//conf_ff2d(&f_ff2dStruct[stimindex],stimindex);	* use this trial's seeds and configure both dot fields *
 
 	stimcnt = stim_trial; /*initialize stimulus count parameter*/
-	
+
+	/* set reward time */
+	set_times("reward", (long)f_reward_preset, (long)f_reward_random);
+
 	return 0;
 }
 
@@ -718,13 +687,6 @@ void conf_ff2d(FF2DStruct* pff2d,int i)
 
 int next_dotf(void)
 {
-  /* OLD COMMANDS:
-   * calculate stimulus position in pixels 
-   long xpos = xpix(stimx, stimz);  
-   long ypos = ypix(stimy, stimz);*/
-
-   /* OLD COMMANDS: get degrees per second (speed)*/
-   //long dps = (long) (1000.0 *(stimz * speed/10.0) * SINE_1DEG * XRES/XDIM);
    long width = 0; /* width of directions * 100  */
 
    /* reset counters for duration and isi; 
@@ -747,17 +709,6 @@ int next_dotf(void)
 			stimlist[OVR].islinear = 0;
 			conf_ff2d(&f_ff2dStruct[OVR],OVR);
 			render_update(f_ff2dHandle[OVR], &f_ff2dStruct[OVR], sizeof(FF2DStruct), HANDLE_ON);
-			/* OLD COMMANDS
-			vsend(MSG_SHOW, "bblllll", 
-			dfrhandle, 
-			0, 
-			dps,
-			(rtheta_ovr * 100),
-			width, 
-			xpos, 
-			ypos);
-	 		ffhandle = dfrhandle;
-	 		*/
 	 	}
 		else if (ltheta_ovr != NULLI) 
 	 	{
@@ -765,17 +716,6 @@ int next_dotf(void)
 			stimlist[OVR].islinear = 1;
 			conf_ff2d(&f_ff2dStruct[OVR],OVR);
 			render_update(f_ff2dHandle[OVR], &f_ff2dStruct[OVR], sizeof(FF2DStruct), HANDLE_ON);
-	 		/* OLD COMMANDS
-	 		vsend(MSG_SHOW, "bblllll", 
-		    dflhandle, 
-		    0, 
-		    dps, 
-		    (ltheta_ovr * 100),
-		    width, 
-		    xpos, 
-		    ypos);
-			ffhandle = dflhandle;
-			*/
 	 	}
 	}
 	else
@@ -783,34 +723,6 @@ int next_dotf(void)
 		//dprintf("nextdot= %d\t%d\n",stimindex,f_ff2dHandle[stimindex]);
 		conf_ff2d(&f_ff2dStruct[stimindex],stimindex);
 		render_update(f_ff2dHandle[stimindex], &f_ff2dStruct[stimindex], sizeof(FF2DStruct), HANDLE_ON);
-		
-    	/* OLD COMMANDS
-    	 if (sp->islinear)
-		 {
-		 	vsend(MSG_SHOW, "bblllll",
-			dflhandle, 
-			0, 
-			dps, 
-			(long)(sp->theta * 100), 
-			width, 
-			xpos, 
-			ypos);
-			ffhandle = dflhandle;
-			
-		}
-		else
-		{
-			vsend(MSG_SHOW, "bblllll", 
-			dfrhandle, 
-			0, 
-			dps, 
-			(long)(sp->theta * 100),
-			width, 
-			xpos, 
-			ypos);
-	  		ffhandle = dfrhandle;
-	  		
-		}*/
      }
    
    /*turn on the stimulus on flag */
@@ -890,7 +802,7 @@ int winon(long xsiz, long ysiz)
 {	
 	wd_src_pos(WIND0, WD_DIRPOS, 0, WD_DIRPOS, 0); 
 	wd_pos(WIND0, (long)fixx, (long)fixy);
-	wd_siz(WIND0, (long)xsiz, (long)ysiz);
+	wd_siz(WIND0, (long)f_window_size_tenths, (long)f_window_size_tenths);
 	wd_cntrl(WIND0, WD_ON);
 	wd_src_check(WIND0,WD_SIGNAL, EYEH_SIG, WD_SIGNAL, EYEV_SIG);	
 	
@@ -989,9 +901,6 @@ int ovrcd(void)
 void pr_info(void)
 {
    int i;
-   //OLD BUFFER COMMANDS REMOVED by swe 10.01.07
-   //extern char outbuf[];
-   //setbuf(stdout, &outbuf);
    
    /* print out the header information: here
     * index #, linear or no, dir, status, and number done
@@ -1017,27 +926,8 @@ void pr_info(void)
     * number of trials done followed by number of errors */
    printf("%d trials, %d errors\n", (nstim * nreps)/stim_trial - remain, errcnt);
 
-   /* clear out the buffers */
-   //fflush(stdout);
-   //setbuf(stdout, 0);
 }
 
-/**************************** n_exlist() **********************************
- *
- * enables 't e' requests to print bookeeping info
- *
-void n_exlist(char *vstr)
-{
-   switch(*vstr)
-     {
-     case 't':	 type a list 
-	  pr_info();
-	  break;
-     default:
-       badverb();  this is REX error message call 
-       break;
-     }
-}*/
 
 /************************************************************************
  * Ecode-returning functions for data recording. The order in which these
@@ -1066,18 +956,20 @@ VLIST stim_vl[] = {
 	NS
 };
 
-/* the following function takes the secondary statelist as
- * defined above and returns a menu; this allows it to be
- * included in your primary statelist (the st menu) as 
- * a submenu. Note that VLIST and MENU are return types 
- * specified deep in the bowels of REX. */
-
-MENU stim_me = 
-	{
-	 "stim_params", &stim_vl, NP, NP, 0, NP, NS,
-	};
-
 char hm_stim[] = "";
+
+VLIST fix_vl[] = {
+   "fp_x",		&fixx,	NP, NP,	0, ME_DEC,
+   "fp_y",		&fixy,	NP, NP,	0, ME_DEC,
+   "fp_size",	&fpsiz, NP, NP, 0, ME_DEC,
+   "fp_R",		&fp_R,	NP,	NP,	0, ME_DEC,
+   "fp_G",		&fp_G,	NP,	NP,	0, ME_DEC,
+   "fp_B",		&fp_B,	NP,	NP,	0, ME_DEC,
+   "fp_window(tenths)", &f_window_size_tenths, NP, NP, 0, ME_DEC,
+	NS
+};
+
+char hm_fix[] = "";
 
 /* now the primary statelist, as usually defined. For the
  * st menu to work, this MUST be called state_vl[]. In 
@@ -1091,12 +983,6 @@ char hm_stim[] = "";
 
 VLIST state_vl[] = {
    "day_seed",		&seed, NP, NP, 0, ME_DEC,
-   "fp_x",		&fixx,	NP, NP,	0, ME_DEC,
-   "fp_y",		&fixy,	NP, NP,	0, ME_DEC,
-   "fp_size",	&fpsiz, NP, NP, 0, ME_DEC,
-   "fp_R",		&fp_R,	NP,	NP,	0, ME_DEC,
-   "fp_G",		&fp_G,	NP,	NP,	0, ME_DEC,
-   "fp_B",		&fp_B,	NP,	NP,	0, ME_DEC,
    "stim_x",		&stimx,	NP, NP,	0, ME_DEC,
    "stim_y",		&stimy,	NP, NP,	0, ME_DEC,
    "stim_r",		&stimr,	NP, NP,	0, ME_DEC,
@@ -1113,6 +999,8 @@ VLIST state_vl[] = {
    "speed",	        &speed, NP, NP, 0, ME_DEC,
    "trials",		&nreps, NP, NP, 0, ME_DEC,
    "fix_led",		&fix_led, NP, NP, 0, ME_DEC,
+   "reward_preset",	&f_reward_preset, NP, NP, 0, ME_DEC,
+   "reward_random",	&f_reward_random, NP, NP, 0, ME_DEC,
    NS,
 };
 
@@ -1125,6 +1013,7 @@ char hm_sv_vl[] = "";
 MENU umenus[] = {
 {"state_vars", &state_vl, NP, NP, 0, NP, hm_sv_vl}, 
 {"separator", NP}, 
+{"fix_params", &fix_vl, NP, NP, 0, NP, hm_fix},
 {"stim_params", &stim_vl, NP, NP, 0, NP, hm_stim},
 {NS},
 };
