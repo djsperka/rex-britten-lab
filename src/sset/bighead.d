@@ -357,14 +357,21 @@ char hm_vvol[] = "";
 
 /* 
  * Background color menu  
+ * 
+ * the isi background is turned on during the isi and turned off after 
+ * the trial init wait period. 
  */
 
-int f_background_color[3] = {0};		/* background color [0,255] */
+int f_background_color[3] = {0, 0, 0};		/* background color [0,255] */
+int f_isi_background_color[3] = {255, 255, 255};
 
 VLIST background_vl[] = {
 "Background_color(R)", &f_background_color[0], 0, NP, 0, ME_DEC,
 "Background_color(G)", &f_background_color[1], 0, NP, 0, ME_DEC,
 "Background_color(B)", &f_background_color[2], 0, NP, 0, ME_DEC,
+"ISI_Background_color(R)", &f_isi_background_color[0], 0, NP, 0, ME_DEC,
+"ISI_Background_color(G)", &f_isi_background_color[1], 0, NP, 0, ME_DEC,
+"ISI_Background_color(B)", &f_isi_background_color[2], 0, NP, 0, ME_DEC,
 NS,
 };
 
@@ -376,6 +383,7 @@ char hm_background[] = "";
  
 float f_fixpt_diameter = 0.25;				/* diameter of fixpt (degrees) */
 float f_fixpt_window = 3;				/* size of fixation point window */
+float f_fixpt_epsilon_window = 5;       /* size of window during pursuit epsilon period */
 int f_fixpt_color[3] = {255, 0, 0};		/* fixpt color [0,255] */
 float f_fixpt_refpos[2] = {0, 0};
 
@@ -384,6 +392,7 @@ VLIST fixpt_vl[] = {
 "reference_pt_y(deg)", &f_fixpt_refpos[1], NP, NP, 0, ME_FLOAT,
 "fixpt_diameter(deg)", &f_fixpt_diameter, NP, NP, 0, ME_FLOAT,
 "fixpt_window(deg)", &f_fixpt_window, NP, NP, 0, ME_FLOAT,
+"fixpt_eps_window(deg)", &f_fixpt_epsilon_window, NP, NP, 0, ME_FLOAT,
 "fixpt_color(R)", &f_fixpt_color[0], 0, NP, 0, ME_DEC,
 "fixpt_color(G)", &f_fixpt_color[1], 0, NP, 0, ME_DEC,
 "fixpt_color(B)", &f_fixpt_color[2], 0, NP, 0, ME_DEC,
@@ -1024,6 +1033,7 @@ int my_exp_init()
 /*
  * generate_fixed_elevation_trials()
  * 
+
  * Creates list of BPSHStruct within f_bpshlist for trials with a fixed elevation, 
  * a single pursuit direction (its reverse direction is implied as well), and a range
  * of azimuth values.
@@ -1898,7 +1908,8 @@ int my_trial_init()
 	{
 		f_all_done = 1;
 	}
-	
+
+	// render
 	render_frame(0);
 
 
@@ -1949,6 +1960,30 @@ int my_animate()
 			if (pstatus & 0x10) ecode(PURSUIT_BLINK_END);
 			if (hstatus & 0x1) ecode(DOTS_ON);
 			if (hstatus & 0x2) ecode(TRANS_START);
+			
+			/* On starting the epsilon period we will set the size of the eye window to 
+			 * f_fixpt_e[psilon_window (unless it is zero or negative). 
+			 * On ending the epsilon period we set it back to f_fixpt_window
+			 */
+			if (pstatus & 0x2 && (f_pbpsh->ptype == BPSH_PTYPE_PURSUIT ||
+								  f_pbpsh->ptype == BPSH_PTYPE_RETSTAB))
+			{
+				if (f_fixpt_epsilon_window > 0)
+				{
+					f_pbpsh->set_eye_window_size = 1;
+					f_pbpsh->eyesx = f_pbpsh->eyesy = f_fixpt_epsilon_window;
+				}
+			}
+			if (pstatus & 0x4 && (f_pbpsh->ptype == BPSH_PTYPE_PURSUIT ||
+								  f_pbpsh->ptype == BPSH_PTYPE_RETSTAB))
+			{
+				if (f_fixpt_epsilon_window > 0)
+				{
+					f_pbpsh->set_eye_window_size = 1;
+					f_pbpsh->eyesx = f_pbpsh->eyesy = f_fixpt_window;
+				}
+			}
+			
 		}
 		
 		// bcodes 
@@ -2179,6 +2214,13 @@ int my_eye_window(int iflag)
 	if (iflag & EYE_WINDOW_FIXPT_UPDATE)
 	{
 		wd_pos(0, (long)(f_pbpsh->eyewx*10.0), (long)(f_pbpsh->eyewy*10.0));
+		
+		if (f_pbpsh->set_eye_window_size)
+		{
+			wd_siz(0, (long)(f_pbpsh->eyesx*10.0), (long)(f_pbpsh->eyesy*10.0));
+			f_pbpsh->set_eye_window_size = 0;
+			if (f_verbose & DEBUG_INFO_BIT) dprintf("Set eyew size to %d,%d\n", (int)(f_pbpsh->eyesx*10), (int)(f_pbpsh->eyesy*10));
+		}
 		//dprintf("eyew update x=%d y=%d\n",  (long)(f_pbpsh->eyewx*10.0), (long)(f_pbpsh->eyewy*10.0));
 	}
 
@@ -2197,6 +2239,30 @@ int my_eye_window(int iflag)
 
 	return status;
 }
+
+int my_intertrial_pause()
+{
+	// set isi background color
+	render_bgcolor(f_isi_background_color[0], f_isi_background_color[1], f_isi_background_color[2]);
+
+	// render, no WENT to wait for
+	render_frame(1);
+
+	return 0;
+}
+
+
+// no rendering in this func! Hacknig this into state diagram, FRAME already 
+// done when fixpt is turned on!
+
+int restore_background()
+{
+	// set isi background color
+	render_bgcolor(f_background_color[0], f_background_color[1], f_background_color[2]);
+
+	return 0;
+}
+  
 
 
 int my_reward(int ireward)
@@ -2501,6 +2567,9 @@ begin	first:
 	trial_init_pause:
 		time 500			/* This time will be updated based on menu entry - f_trial_init_pase - see my_trial_init() */
 		to pause_detected on +PSTOP & softswitch
+	    to trial_init_restore_background
+	trial_init_restore_background:
+	    do restore_background()
 		to fixpt_on
 	fixpt_on:
 		do fixpt_onoff(1);
@@ -2570,7 +2639,8 @@ begin	first:
 		to intertrial_pause on 1 % render_check_for_went
 	intertrial_pause:
 		time 500
-		to trial_init
+	    do my_intertrial_pause()
+	    to trial_init
 	pause_detected_wait:
 		to pause_detected on 1 % render_check_for_went
 	pause_detected:
