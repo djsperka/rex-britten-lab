@@ -153,8 +153,7 @@ int	fixx = 0,
 	use_gaussian =  0,
 	coherence = 95,
 	npts = 20,
-	orientation = 0,
-	framerate = 85;
+	orientation = 0;
 long seed = 1111;
 float fpsize = 0.25,
 	targsize = 0.25,
@@ -168,6 +167,10 @@ float fpsize = 0.25,
 double translation = 5000.0,		// in mm per sec
 	pathlength;
 
+
+
+int f_width, f_height;
+double f_framerate;
 
 static long eye[] = {0, 0, 0};		/* location of observer */
 static long eyetraj[] = {0, 0, 0};	/* eye translation */
@@ -209,7 +212,7 @@ int xoff = 0;
 int yoff = 0;
 
 /* Counters */
-static int frame_counter,
+int frame_counter,
 		isicnt,
 		stimcnt,
 		trlcunt;
@@ -427,10 +430,10 @@ int my_check_for_went2()
  * 
  * 	Updates target structure and sends command to update render object
  */
- static int update_target(void)
+ int update_target(void)
  {
-	xdeg = xdeg + velx/(framerate-1);
- 	ydeg = ydeg + vely/(framerate-1);
+	xdeg = xdeg + velx/(f_framerate-1);
+ 	ydeg = ydeg + vely/(f_framerate-1);
  	xpix = to_pixels(xdeg);
  	ypix = to_pixels(ydeg);
  	if (use_gaussian == 0)
@@ -592,7 +595,7 @@ void rinitf(void)
  * opens fixation window (calls a bunch of library functions from REX to
  * do so)
  */
-static int winon(long xsiz, long ysiz)
+int winon(long xsiz, long ysiz)
 {	
 	wd_src_pos(WIND0, WD_DIRPOS, 0, WD_DIRPOS, 0); 
 	wd_pos(WIND0, (long)fixx, (long)fixy);
@@ -611,13 +614,26 @@ static int winon(long xsiz, long ysiz)
 int initial(void)
 {
 	int i, j, fmin, fmax;
-//	extern struct stim *sp;
-
 	double trans;
 
-	initialize_pixel_conversion(x_dimension_mm, y_dimension_mm, x_resolution, y_resolution, stimz);
+	
+	// fetch render parameters -- resolution and frame rate
+	render_get_parameters(&f_width, &f_height, &f_framerate);
+	dprintf("render parameters: %dx%d@%d\n", f_width, f_height, (int)f_framerate);
 
+	
+	
+	// initialize pixel conversion
+	if (initialize_pixel_conversion(x_dimension_mm, y_dimension_mm, f_width, f_height, stimz))
+	{
+		dprintf("ERROR in initialize_pixel_conversion: \n"
+				"x,y dimensions=(%d, %d)\n"
+				"x,y resolution=(%d, %d)\n"
+				"screen distance=%d\n", (int)x_dimension_mm, (int)y_dimension_mm, (int)f_width, (int)f_height, (int)stimz);
+	}
 
+	
+	
 if (!seedflg)
     {
     ivunif(seed,0);
@@ -673,7 +689,7 @@ return(0);
  *
  * figures out the next stimulus type in the sequence
  */
-static int next_stim(void)
+int next_stim(void)
 {
 //extern struct stim *sp;
 	int rindx, active;
@@ -752,7 +768,7 @@ if (xpos_ovr == NULLI)
     	}
     	else
     	{
-    		xdeg = (float)sp->xpos/10 - (float)(frame_counter+1)*velx/(framerate-1)/2 - velx/(framerate-1);
+    		xdeg = (float)sp->xpos/10 - (float)(frame_counter+1)*velx/(f_framerate-1)/2 - velx/(f_framerate-1);
     		ydeg = (float)ypos/10;
     		blank = 0;
     	}
@@ -770,7 +786,7 @@ else
     	}
     	else
 		{    		
-    		xdeg = (float)xpos_ovr/10 - (float)(frame_counter+1)*velx/(framerate-1)/2 - velx/(framerate-1);
+    		xdeg = (float)xpos_ovr/10 - (float)(frame_counter+1)*velx/(f_framerate-1)/2 - velx/(f_framerate-1);
     		ydeg = (float)ypos/10;
     		blank = 0;
 		}
@@ -799,7 +815,7 @@ return(0);
  *
  * drops an identifying Ecode for stimulus condition
  */
-static int trlcd(void)
+int trlcd(void)
 {
 	dprintf("trlcd = %d\n",(int)(sp->xpos*10));
 	
@@ -811,7 +827,7 @@ static int trlcd(void)
  *
  * drops an flag Ecode if override is set
  */
-static int ovrcd(void)
+int ovrcd(void)
 {
 	if (xpos_ovr != NULLI)
 	{
