@@ -1107,9 +1107,9 @@ VLIST state_vl[] = {
 "ang_max",		&ang_max, NP, NP, 0, ME_DEC,
 "ang_num",		&ang_num, NP, NP, 0, ME_DEC,
 "eye_movement?(0,1,2)",	&mov_flg, NP, NP, 0, ME_DEC,
-"local ip addr", local_addr, NP, NP, 0, ME_STR,
-"remote ip addr", remote_addr, NP, NP, 0, ME_STR,
-"remote port", &remote_port, NP, NP, 0, ME_DEC,
+"local_ip_addr", local_addr, NP, NP, 0, ME_STR,
+"remote_ip_addr", remote_addr, NP, NP, 0, ME_STR,
+"remote_port", &remote_port, NP, NP, 0, ME_DEC,
 NS,
 };
 
