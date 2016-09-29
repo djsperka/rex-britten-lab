@@ -1574,13 +1574,18 @@ int my_exp_init()
 							f_pfixpt_y = (float *)calloc(f_ntrialtypes, sizeof(float));
 							f_pwdpos_x = (long *)calloc(f_ntrialtypes, sizeof(long));
 							f_pwdpos_y = (long *)calloc(f_ntrialtypes, sizeof(long));
+							f_pfixed_looking_angle_deg = (float *)calloc(f_ntrialtypes, sizeof(float));
+							dprintf("!f_replay_reflect: f_ntrialtypes=%d\n",f_ntrialtypes);
 							for (i=0; i<f_ntrialtypes; i++)
 							{
+								dprintf("get trial %d\n", i);
 								ptrial = r3p_get_trial(i);
 								f_pfixpt_x[i] = ptrial->header.fixpt_x;		 
 								f_pfixpt_y[i] = ptrial->header.fixpt_y;
 								f_pwdpos_x[i] = (long)(ptrial->header.fixpt_x*10);
 								f_pwdpos_y[i] = (long)(ptrial->header.fixpt_y*10);
+								f_pfixed_looking_angle_deg[i] = ptrial->header.fixed_looking_angle_deg;
+								dprintf("%d/10 %d/10 %d %d %d/10\n", (int)(f_pfixpt_x[i]*10), (int)(f_pfixpt_y[i]*10), f_pwdpos_x[i], f_pwdpos_y[i], (int)(f_pfixed_looking_angle_deg[i]*10)); 
 							}	
 						}
 						else
@@ -1590,6 +1595,8 @@ int my_exp_init()
 							f_pfixpt_y = (float *)calloc(f_ntrialtypes, sizeof(float));
 							f_pwdpos_x = (long *)calloc(f_ntrialtypes, sizeof(long));
 							f_pwdpos_y = (long *)calloc(f_ntrialtypes, sizeof(long));
+							f_pfixed_looking_angle_deg = (float *)calloc(f_ntrialtypes, sizeof(float));
+							dprintf("f_replay_reflect: nreplayloaded=%d\n",nreplayloaded);
 							for (i=0; i<nreplayloaded; i++)
 							{
 								ptrial = r3p_get_trial(i);
@@ -1597,11 +1604,12 @@ int my_exp_init()
 								f_pfixpt_y[i] = ptrial->header.fixpt_y;
 								f_pwdpos_x[i] = (long)(ptrial->header.fixpt_x*10);
 								f_pwdpos_y[i] = (long)(ptrial->header.fixpt_y*10);
-	
+								f_pfixed_looking_angle_deg[i] = ptrial->header.fixed_looking_angle_deg;	
 								f_pfixpt_x[i+nreplayloaded] = ptrial->header.fixpt_x;		 
 								f_pfixpt_y[i+nreplayloaded] = ptrial->header.fixpt_y;
 								f_pwdpos_x[i+nreplayloaded] = (long)(ptrial->header.fixpt_x*10);
 								f_pwdpos_y[i+nreplayloaded] = (long)(ptrial->header.fixpt_y*10);
+								f_pfixed_looking_angle_deg[i] = ptrial->header.fixed_looking_angle_deg;	
 							}	
 						}						
 					}
@@ -1634,7 +1642,7 @@ int my_exp_init()
 		}
 		dprintf("Create random trial generator: %d trialtypes, %d trials each, blocksize %d\n", f_ntrialtypes, f_ntrials, f_nblocksize);
 		f_prtgen = rtg_create(f_ntrialtypes, f_ntrials, f_nblocksize);
-			
+		dprintf("done.\n");
 		/* 
 		 * Initialize buffer for saving data. Don't save render commands, instead save enough data to reproduce the 
 		 * commands themselves. Write data in to a char buffer, then dump it later to file after trial is done. 
@@ -1667,7 +1675,10 @@ int my_exp_init()
 			else
 			{
 				f_savecommandsbuffersize = 50 * f_framerate * f_trial_max_length_s;
+				dprintf("multiplyer %d\n", (int)(f_framerate * f_trial_max_length_s));
 			}  
+			dprintf("sizeof(R3PHeader) = %d\n", sizeof(R3PHeader));
+			dprintf("sizeof(R3PWent) = %d\n", sizeof(R3PWent));
 			dprintf("Allocating buffer of %d bytes for saving trial data.\n", f_savecommandsbuffersize);
 			f_savecommandsbuffer = (char *)malloc(f_savecommandsbuffersize);
 			f_savecommandsbufferused = 0;
@@ -1711,6 +1722,7 @@ int my_exp_init()
 			
 		}
 	} 
+	dprintf("return %d", status);
 	return status;
 }
 
@@ -2505,7 +2517,9 @@ int my_trial_init()
 	f_diffusion_target_next_action_frame = 1;
 		
 	/* Check for fixpt condition to apply to this trial. */
+	dprintf("my_trial_init(): call f_prtgen->next...\n");
 	f_trial_condition_index = f_prtgen->next(f_prtgen);
+	dprintf("done %d\n", f_trial_condition_index);
 	if (f_trial_condition_index >= 0)
 	{
 		dprintf("Trial condition index: %d fixpt*100(%d,%d) looking*100(%d)\n", f_trial_condition_index, (int)(f_pfixpt_x[f_trial_condition_index]*100), (int)(f_pfixpt_y[f_trial_condition_index]*100), (int)(f_pfixed_looking_angle_deg[f_trial_condition_index]*100));
@@ -2678,7 +2692,8 @@ int my_trial_init()
 
 
 		/* 
-		 * If saving command data, push initial data into buffer
+		 * If saving command data, push initial data into buffer.
+		 * Note: One last item for header is written at the start of the trial.
 		 */
 		 
 		if (f_savecommands)
@@ -2687,10 +2702,12 @@ int my_trial_init()
 			save_to_buffer(f_savecommandsbuffer, &f_savecommandsbufferused, &ttime, sizeof(ttime));
 			save_to_buffer(f_savecommandsbuffer, &f_savecommandsbufferused, &f_pfixpt_x[f_trial_condition_index], sizeof(f_pfixpt_x[f_trial_condition_index]));
 			save_to_buffer(f_savecommandsbuffer, &f_savecommandsbufferused, &f_pfixpt_y[f_trial_condition_index], sizeof(f_pfixpt_y[f_trial_condition_index]));
+			save_to_buffer(f_savecommandsbuffer, &f_savecommandsbufferused, &f_pfixed_looking_angle_deg[f_trial_condition_index], sizeof(f_pfixed_looking_angle_deg[f_trial_condition_index]));
 			save_to_buffer(f_savecommandsbuffer, &f_savecommandsbufferused, &f_cam_height, sizeof(f_cam_height));
 			save_to_buffer(f_savecommandsbuffer, &f_savecommandsbufferused, &f_speed, sizeof(f_speed));
 			save_to_buffer(f_savecommandsbuffer, &f_savecommandsbufferused, f_cam_position, 3*sizeof(float));
 			save_to_buffer(f_savecommandsbuffer, &f_savecommandsbufferused, &f_cam_trajectory, sizeof(f_cam_trajectory));
+			dprintf("Wrote header (without ttrans): bufferused %d\n", f_savecommandsbufferused);
 		}
 	}
 	else
@@ -2832,6 +2849,7 @@ int my_trial_allon_offset()
 	if (f_savecommands)
 	{
 		save_to_buffer(f_savecommandsbuffer, &f_savecommandsbufferused, &f_ttrans_dir, sizeof(f_ttrans_dir));
+		dprintf("Wrote header ttrans: bufferused %d\n", f_savecommandsbufferused);
 	}
 	return 0;
 }
@@ -3310,6 +3328,7 @@ int my_update()
 		save_to_buffer(f_savecommandsbuffer, &f_savecommandsbufferused, &f_jitter_target_delta, sizeof(f_jitter_target_delta));
 		save_to_buffer(f_savecommandsbuffer, &f_savecommandsbufferused, &meander_target_delta, sizeof(meander_target_delta));
 		save_to_buffer(f_savecommandsbuffer, &f_savecommandsbufferused, &diffusion_target_delta, sizeof(diffusion_target_delta));
+		//dprintf("Wrote went data: bufferused %d\n", f_savecommandsbufferused);
 	}	
 	
 	return status;	
