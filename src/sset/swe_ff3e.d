@@ -133,6 +133,13 @@ int errcnt;
 char outbuf[8192];									/* used in pr_info */
 int seedflg = 0;			/* flag set after random number generator seeded */
 
+/*
+ * render parameters
+ */
+
+int f_width, f_height;
+double f_framerate;
+
 
 /************************************************************************
  * Declaration of statelist variables.
@@ -173,8 +180,9 @@ int	fixx = 0,
 	remain,
 	movietime = 1000,		// flow movie time in msec
 	movieframes,
-	speed = 100,			// 1/10ths of degrees per second
-	framerate = 85;
+	speed = 100;			// 1/10ths of degrees per second
+//	framerate = 85;
+
 long seed = 1111;
 float fpsize = 0.2,
 	pathdelay = 250.0,	// delay in msec
@@ -416,7 +424,7 @@ int my_path_setup()
 	f_path.vpf[1] = vptraj[1];
 	f_path.vpf[2] = -vptraj[2];		/* Negative to agree w/ "world" coordinates */
 
-	pathdelayframes = pathdelay/1000*(float)framerate;
+	pathdelayframes = pathdelay/1000*f_framerate;
 	pathdelayframes = (int)pathdelayframes;
 
 	f_path.nframes = movieframes;
@@ -655,7 +663,22 @@ int initial(void)
 	int n, npurs;
 
 	dprintf("initial()\n");
-	initialize_pixel_conversion(x_dimension_mm, y_dimension_mm, x_resolution, y_resolution, stimz);
+
+	// fetch render parameters -- resolution and frame rate
+	render_get_parameters(&f_width, &f_height, &f_framerate);
+	dprintf("render parameters: %dx%d@%d\n", f_width, f_height, (int)f_framerate);
+
+	
+	
+	// initialize pixel conversion
+	if (initialize_pixel_conversion(x_dimension_mm, y_dimension_mm, f_width, f_height, stimz))
+	{
+		dprintf("ERROR in initialize_pixel_conversion: \n"
+				"x,y dimensions=(%d, %d)\n"
+				"x,y resolution=(%d, %d)\n"
+				"screen distance=%d\n", (int)x_dimension_mm, (int)y_dimension_mm, (int)f_width, (int)f_height, (int)stimz);
+	}
+	
 	if (!seedflg)
     {
 	    ivunif(seed,0);
@@ -749,8 +772,8 @@ int initial(void)
 	sp->stat = END;
 
 	remain = nstim*ntrials;						/* Number of trials remaining? */
-	movieframes = movietime*framerate/1000;		/* movietime is in menus; this is number of frames of dot motion */
-	trans = translation/(float)framerate;		/* translation is total camera movement distance (time implicitly 1 sec). */
+	movieframes = movietime*f_framerate/1000;		/* movietime is in menus; this is number of frames of dot motion */
+	trans = translation/f_framerate;		/* translation is total camera movement distance (time implicitly 1 sec). */
 	                                            /* trans is camera movement dist per frame */
 	pathlength = movieframes*trans;				/* pathlength is a more careful calculation of camera travel distance */
 
@@ -761,7 +784,7 @@ int initial(void)
  *
  * figures out the next stimulus type in the sequence
  */
-static int next_trl(void)
+int next_trl(void)
 {
 	int rindx, active;
 	int r_num;
@@ -881,8 +904,8 @@ static int next_trl(void)
 		if (pursuit_ang_ovr == NULLI) angle = sp->pursuit_ang;
 		else angle = pursuit_ang_ovr/10.0f;
 		
-		dot_travel_deg = movieframes * speed / 10 / framerate;
-		extra_dot_travel_deg = pathdelayframes * speed / 10 / framerate;
+		dot_travel_deg = movieframes * speed / 10 / f_framerate;
+		extra_dot_travel_deg = pathdelayframes * speed / 10 / f_framerate;
 		
 		dx = dot_travel_deg * cos(PI*angle/180);
 		dy = dot_travel_deg * sin(PI*angle/180);
@@ -920,7 +943,7 @@ static int next_trl(void)
  *
  * drops an identifying Ecode for stimulus condition
  */
-static int trlcd(void)
+int trlcd(void)
 {
 	dprintf("trlcd = %d\n",sp->ang);
 	return(4000 + sp->ang);
@@ -931,7 +954,7 @@ static int trlcd(void)
  * drops an identifying Ecode for pursuit condition
  * djs - drops sp->fixed. 1 means pursuit, 0 means no pursuit
  */
-static int purscd(void)
+int purscd(void)
 {
 	dprintf("purscd = %d\n",sp->fixed);
 	return(3000 + sp->fixed);
@@ -941,7 +964,7 @@ static int purscd(void)
  *
  * drops an flag Ecode if override is set
  */
-static int ovrcd(void)
+int ovrcd(void)
 {
 	if (ang_ovr != NULLI)
 	{
