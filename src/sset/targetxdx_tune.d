@@ -977,9 +977,9 @@ VLIST state_vl[] = {
 "xvel_num",		&xvel_num, NP, NP, 0, ME_DEC,
 "use_gaussian",	&use_gaussian, NP, NP, 0, ME_DEC,
 "use_blank",	&bf_con,	NP,	NP,	0,	ME_DEC,
-"local ip addr", local_addr, NP, NP, 0, ME_STR,
-"remote ip addr", remote_addr, NP, NP, 0, ME_STR,
-"remote port", &remote_port, NP, NP, 0, ME_DEC,
+"local_ip_addr", local_addr, NP, NP, 0, ME_STR,
+"remote_ip_addr", remote_addr, NP, NP, 0, ME_STR,
+"remote_port", &remote_port, NP, NP, 0, ME_DEC,
 NS,
 };
 
