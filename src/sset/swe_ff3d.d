@@ -173,7 +173,7 @@ int	fixx = 0,
 	movietime = 1000,		// flow movie time in msec
 	movieframes,
 	speed = 100;			// 1/10ths of degrees per second
-	framerate = 85;
+
 long seed = 1111;
 float fpsize = 0.2,
 	fp_startx,
@@ -227,6 +227,11 @@ int angle = 0;
 int velocity;
 int xoff = 0;
 int yoff = 0;
+
+
+/* render parameters */
+int f_width, f_height;
+double f_framerate;
 
 
 /************************************************************************
@@ -459,7 +464,7 @@ int my_path_setup()
 	f_path.vpf[1] = vptraj[1];
 	f_path.vpf[2] = -vptraj[2];		/* Negative to agree w/ "world" coordinates */
 
-	pathdelayframes = pathdelay/1000*(float)framerate;
+	pathdelayframes = pathdelay/1000*f_framerate;
 	pathdelayframes = (int)pathdelayframes;
 
 	f_path.nframes = movieframes;
@@ -703,7 +708,24 @@ int initial(void)
 
 	dprintf("initial()\n");
 	
-	initialize_pixel_conversion(x_dimension_mm, y_dimension_mm, x_resolution, y_resolution, stimz);
+	// fetch render parameters -- resolution and frame rate
+	render_get_parameters(&f_width, &f_height, &f_framerate);
+	dprintf("render parameters: %dx%d@%d\n", f_width, f_height, (int)f_framerate);
+
+	
+	
+	// initialize pixel conversion
+	if (initialize_pixel_conversion(x_dimension_mm, y_dimension_mm, f_width, f_height, stimz))
+	{
+		dprintf("ERROR in initialize_pixel_conversion: \n"
+				"x,y dimensions=(%d, %d)\n"
+				"x,y resolution=(%d, %d)\n"
+				"screen distance=%d\n", (int)x_dimension_mm, (int)y_dimension_mm, (int)f_width, (int)f_height, (int)stimz);
+	}
+	
+	
+	
+	//initialize_pixel_conversion(x_dimension_mm, y_dimension_mm, x_resolution, y_resolution, stimz);
 
 if (!seedflg)
     {
@@ -759,8 +781,8 @@ for (i=0; i < (ang_num+bf_con); i++)	/* outermost is angle ; detect black screen
 sp->stat = END;
 
 remain = nstim*ntrials;
-movieframes = movietime*framerate/1000;
-velx = (float)speed/10/(float)framerate;
+movieframes = movietime*f_framerate/1000;
+velx = (float)speed/10/f_framerate;
 vely = 0;
 fp_startx = velx*movieframes/2;
 fp_starty = vely*movieframes/2;
@@ -779,7 +801,7 @@ return(0);
  *
  * figures out the next stimulus type in the sequence
  */
-static int next_trl(void)
+int next_trl(void)
 {
 //extern struct stim *sp;
 	int rindx, active;
@@ -878,7 +900,7 @@ else if (sp->fixmov == 1)
 		sign = -1;
 		pursflg = 1;
 		velocity = (int)(speed/10);
-		velx = (float)speed/10/(float)framerate;
+		velx = (float)speed/10/f_framerate;
 		vely = 0;
 	}
 else if (sp->fixmov == 2)
@@ -886,7 +908,7 @@ else if (sp->fixmov == 2)
 		sign = 1;
 		pursflg = 1;
 		velocity = (int)(speed/10);
-		velx = (float)speed/10/(float)framerate;
+		velx = (float)speed/10/f_framerate;
 		vely = 0;
 	}
 else dprintf(" fixmov flg not valid \n");
@@ -961,7 +983,7 @@ return(0);
  *
  * drops an identifying Ecode for stimulus condition
  */
-static int trlcd(void)
+int trlcd(void)
 {
 	dprintf("trlcd = %d\n",sp->ang);
 	return(4000 + sp->ang);
@@ -971,7 +993,7 @@ static int trlcd(void)
  *
  * drops an identifying Ecode for pursuit condition
  */
-static int purscd(void)
+int purscd(void)
 {
 	dprintf("pruscd = %d\n",sp->fixmov);
 	return(3000 + sp->fixmov);
@@ -981,7 +1003,7 @@ static int purscd(void)
  *
  * drops an flag Ecode if override is set
  */
-static int ovrcd(void)
+int ovrcd(void)
 {
 	if (ang_ovr != NULLI)
 	{
