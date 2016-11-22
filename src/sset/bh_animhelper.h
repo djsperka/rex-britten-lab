@@ -70,18 +70,27 @@ struct bpsh_struct
 	int n_pre_pursuit_start;	/* frames until eps pursuit motion starts */
 	int n_pursuit_start;		/* frames until pursuit motion starts */
 	int n_blink;				/* number of frames a blink lasts. if 0, no blink. THIS IS A DURATION, NOT A START TIME */
+	int do_pursuit_jump_start;  /* when != 0, fixation is at pursuit start pos, dot jumps at start of 
+								 * pursuit to the phi0 position, but eye window remains at pursuit
+								 * start pos until pursuit period begins. During pursuit period, eye window
+								 * tracks dot */
 	
 	/* DO NOT INITIALIZE BELOW THIS LINE! */
 	
 	PursuitTransformStruct ptrans;
 	CameraStruct cam;
 	float beta;			/* computed - does not change during animation, in degrees */
-	float phi0;			/* starting value of phi at step 0 */
+	float phi0;			/* starting value of phi at step 0 (takes into account epsilon motion) */
+	float phiPS;        /* value of phi at start of pursuit period (after epsilon period) */
 	float dx, dy, dz;	/* translation step size */	
 	int n_blink_start;	/* frame where blink starts; 0 if no blink */
 	int n_blink_end;	/* frame where blink stops; 0 if no blink */
 	float eyewx;
 	float eyewy;
+	int set_eye_window_size;  /* When set, tells set_eye_window to set size to eyesx, eyesy */
+	float eyesx;
+	float eyesy;
+	
 	
 };
 

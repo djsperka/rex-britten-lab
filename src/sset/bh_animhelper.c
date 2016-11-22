@@ -23,19 +23,25 @@ int initialize_bpsh_struct(BPSHStruct* pbpsh)
 	 * Also (7/11/13) Was using -a, not a. a===(fixpt) DOT uhat. 
 	 */	
 	 
-	/* If this is simulated pursuit, then use vp=0 in setting phi0! */
+	/* If this is simulated pursuit, then use vp=0 in setting phi0! (phiPS not used here) */
 	
 	
 	if (pbpsh->ptype == BPSH_PTYPE_SIMULATED)
 	{
 		pbpsh->phi0 = (pbpsh->x * cos(pbpsh->rho*M_PI/180.0) + pbpsh->y * sin(pbpsh->rho*M_PI/180.0));
+		pbpsh->phiPS = (pbpsh->x * cos(pbpsh->rho*M_PI/180.0) + pbpsh->y * sin(pbpsh->rho*M_PI/180.0));
 	}
 	else
 	{		
 		pbpsh->phi0 = (pbpsh->x * cos(pbpsh->rho*M_PI/180.0) + pbpsh->y * sin(pbpsh->rho*M_PI/180.0)) - 
-						((pbpsh->n_all_done + pbpsh->n_pursuit_start)/2 - pbpsh->n_pre_pursuit_start)*pbpsh->vp;
+		  ((pbpsh->n_all_done + pbpsh->n_pursuit_start)/2 - pbpsh->n_pre_pursuit_start)*pbpsh->vp;
+		pbpsh->phiPS = (pbpsh->x * cos(pbpsh->rho*M_PI/180.0) + pbpsh->y * sin(pbpsh->rho*M_PI/180.0)) - 
+		  ((pbpsh->n_all_done - pbpsh->n_pursuit_start)/2)*pbpsh->vp;
+
 	}
-		
+
+	dprintf("INIT: rho %d phi0 %d phiPS %d\n", IPRT(pbpsh->rho, 100), IPRT(pbpsh->phi0, 100), IPRT(pbpsh->phiPS, 100));
+
 	/* heading step sizes depend on azimuth and elevation angles */
 	pbpsh->dx = pbpsh->vh * sin(pbpsh->alpha * M_PI/180.0);
 	pbpsh->dy = pbpsh->vh * sin(pbpsh->theta * M_PI/180.0) * cos(pbpsh->alpha * M_PI/180.0);
@@ -56,6 +62,7 @@ int initialize_bpsh_struct(BPSHStruct* pbpsh)
 	pbpsh->evy = 0;
 	pbpsh->last_good_is_valid = 0;
 	pbpsh->last_delta_is_valid = 0;
+	pbpsh->set_eye_window_size = 0;
 
 	return status;
 }
@@ -111,14 +118,13 @@ int bpsh_step(BPSHStruct *pbpsh, int istep)
 	int status = 0;
 	int hstatus = 0;
 	int pstatus = 0;
-	float phi;
 	int cam_update = 0;
 	int ptrans_update = 0;
 	int dot_update = 0;			/* for blinks - call render_onoff with dot_onoff value */
 	int dot_onoff = 0;
 	int ospace_onoff = 0;
 	int ospace_update = 0;
-
+	int jump_start_eye_window = 0;
 	/* 
 	 * Heading. Set camera position and look/up directions. The look/up directions may be
 	 * overridden in the case of simulated pursuit.If ttype is none (no dots) do not turn dots on, 
@@ -193,12 +199,11 @@ int bpsh_step(BPSHStruct *pbpsh, int istep)
 			/*
 			 * Initialization step
 			 */
-			phi = pbpsh->phi0;
 			switch (pbpsh->ptype)
 			{
 				case BPSH_PTYPE_SIMULATED:
 				{
-					pbpsh->cam.a0 = phi;		
+					pbpsh->cam.a0 = pbpsh->phi0;		
 					pbpsh->cam.a1 = pbpsh->beta;
 					pbpsh->cam.a2 = pbpsh->rho;
 					pbpsh->cam.flag = CAMERA_PURSUIT;
@@ -210,7 +215,7 @@ int bpsh_step(BPSHStruct *pbpsh, int istep)
 					 * only do this once - dot remains attached to camera at that offset. 
 					 */
 					 				
-					pbpsh->ptrans.phi = phi;
+					pbpsh->ptrans.phi = pbpsh->phi0;
 					pbpsh->ptrans.beta = pbpsh->beta;
 					pbpsh->ptrans.rho = pbpsh->rho;
 					ptrans_update = 1;
@@ -220,10 +225,16 @@ int bpsh_step(BPSHStruct *pbpsh, int istep)
 				case BPSH_PTYPE_RETSTAB:
 				{
 					/* Place dot at fixpt ref position. See above. */
-					pbpsh->ptrans.phi = phi;
+					if (pbpsh->do_pursuit_jump_start)
+					  pbpsh->ptrans.phi = pbpsh->phiPS;
+					else
+					  pbpsh->ptrans.phi = pbpsh->phi0;
 					pbpsh->ptrans.beta = pbpsh->beta;
 					pbpsh->ptrans.rho = pbpsh->rho;
 					ptrans_update = 1;
+					
+					dprintf("istep==0 rho=%d beta=%d phi=%d\n", IPRT(pbpsh->ptrans.rho, 100), IPRT(pbpsh->ptrans.beta, 100), IPRT(pbpsh->ptrans.phi, 100));
+
 					break;
 				}
 				default:
@@ -245,14 +256,25 @@ int bpsh_step(BPSHStruct *pbpsh, int istep)
 		else if (istep < pbpsh->n_all_done)
 		{
 			int pstep = istep - pbpsh->n_pre_pursuit_start;
+			float phi = pbpsh->phi0 + pstep * pbpsh->vp;
 			
+			// Fix phiWindow position when using pursuit_jump_start
+			if (pbpsh->do_pursuit_jump_start && 
+				istep < pbpsh->n_pursuit_start &&
+				pbpsh->ptype != BPSH_PTYPE_SIMULATED)
+			{
+				jump_start_eye_window = 1;
+			}
+
+			if (pstep < 5 && jump_start_eye_window)
+			  dprintf("pstep==%d rho=%d beta=%d phi=%d\n", pstep, IPRT(pbpsh->ptrans.rho, 100), IPRT(pbpsh->ptrans.beta, 100), IPRT(pbpsh->ptrans.phi, 100));
+
 			/*
 			 * Movement phase. On first frame/step where motion occurs send "2" return status.
 			 */
 
 			if (istep == pbpsh->n_pre_pursuit_start) pstatus |= 2;
 			else if (istep == pbpsh->n_pursuit_start) pstatus |= 4;
-			phi = pbpsh->phi0 + pstep * pbpsh->vp;
 			switch (pbpsh->ptype)
 			{
 				case BPSH_PTYPE_SIMULATED:
@@ -283,7 +305,10 @@ int bpsh_step(BPSHStruct *pbpsh, int istep)
 					pbpsh->ptrans.rho = pbpsh->rho;
 					ptrans_update = 1;
 
-					// Get current x,y avg. If its 					
+					// TODO - retinal stabilization should be turned off when 
+					// using jump_start???
+					
+					// Get current x,y avg. Make our best guess at correction. 					
 					if (!evloop_xy(&x, &y))
 					{
 						//dprintf("xy %d %d\n", IPRT(x, 10), IPRT(y, 10));
@@ -336,40 +361,6 @@ int bpsh_step(BPSHStruct *pbpsh, int istep)
 					pbpsh->cam.flag = CAMERA_AZIMUTH;
 					cam_update = 1;	
 						
-#if 0
-					dprintf("evloop_xy  (%d,%d) %d(%d,%d) %d(%d,%d) (%d,%d)\n", 
-					(int)(x*100), (int)(y*100), 
-					pbpsh->last_good_is_valid,
-					(int)(pbpsh->last_good_x * 100), (int)(pbpsh->last_good_y * 100),
-					pbpsh->last_delta_is_valid,
-					(int)(pbpsh->last_delta_x * 100), (int)(pbpsh->last_delta_y * 100),
-					(int)(pbpsh->azcorrection * 100), (int)(pbpsh->elcorrection * 100));
-#endif
-#if 0
-					// If there is a correction velocity, then apply it to the camera rotation.
-					if (pbpsh->evType == 0)
-					{
-						if (pbpsh->evOK)
-						{
-							pbpsh->azcorrection += pbpsh->evx * pbpsh->evfactor;
-							pbpsh->elcorrection += pbpsh->evy * pbpsh->evfactor;
-						}
-						pbpsh->cam.a0 = pbpsh->azcorrection;
-						pbpsh->cam.a1 = pbpsh->elcorrection;
-						pbpsh->cam.flag = CAMERA_AZIMUTH;
-						cam_update = 1;	
-					}
-					else if (pbpsh->evType == 1)
-					{
-						// compute x and y directions using the values in evx and evy. 
-						// those values are simply the sum of the last f_evWindow eye position values. 
-						//dprintf("x %d y %d\n", pbpsh->evx, pbpsh->evy);
-						pbpsh->cam.flag = CAMERA_DEFAULT;
-						pbpsh->cam.dx = (float)pbpsh->evx/40.0;
-						pbpsh->cam.dy = (float)pbpsh->evy/40.0;
-						pbpsh->cam.dz = -1;
-					}
-#endif
 					break;
 				}
 			}
@@ -406,11 +397,16 @@ int bpsh_step(BPSHStruct *pbpsh, int istep)
 	
 	if (ptrans_update)
 	{
+		PursuitTransformStruct ptrans;
+		
 		// update pursuit trans - this affects position of dot
 		render_update(pbpsh->hptrans, &pbpsh->ptrans, sizeof(PursuitTransformStruct), 0);
 
 		// Compute position of dot on screen - eyewx, eyewy are used for eye window
-		set_eyew(&pbpsh->ptrans, &pbpsh->eyewx, &pbpsh->eyewy);
+		memcpy(&ptrans, &pbpsh->ptrans, sizeof(PursuitTransformStruct));
+		if (jump_start_eye_window)
+		  ptrans.phi = pbpsh->phiPS;
+		set_eyew(&ptrans, &pbpsh->eyewx, &pbpsh->eyewy);
 	}
 	if (dot_update)
 	{

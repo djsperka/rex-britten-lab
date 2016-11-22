@@ -418,6 +418,7 @@ int f_pre_pursuit_start_time = 250;	/* time when pursuit motion starts - this is
 int f_pursuit_start_time = 500;		/* time from fixation/dots on until pursuit starts */
 int f_translation_start_time = 250;	/* time from fixation/dots on until dots motion */
 int f_trial_end_time = 1000;		/* time from fixation/dots on until trial ends */
+int f_pursuit_jump_start = 0;       /* special handling of the eps period */
 
 VLIST timing_vl[] = {
 "trial_init_pause", &f_trial_init_pause_time, NP, NP, 0, ME_DEC,
@@ -431,6 +432,7 @@ VLIST timing_vl[] = {
 "translation_start_time", &f_translation_start_time, NP, NP, 0, ME_DEC,
 "trial_end_time", &f_trial_end_time, NP, NP, 0, ME_DEC,
 "intertrial_time(ms)", &f_intertrial_time, NP, NP, 0, ME_DEC,
+"pursuit_jump_start(0/1)", &f_pursuit_jump_start, NP, NP, 0, ME_DEC,
 NS,
 };
 
@@ -1727,6 +1729,7 @@ int create_bpsh_struct(int ttype, int ptype, float az, float el, float hspeed, f
 	bpsh.x = f_fixpt_refpos[0];
 	bpsh.y = f_fixpt_refpos[1];
 	bpsh.n_all_done = (int)floor(f_trial_end_time/1000.0*f_frames_per_second);
+	bpsh.do_pursuit_jump_start = 0;
 	switch (ttype)
 	{
 		case BPSH_TTYPE_TRANSLATION:
@@ -1759,6 +1762,7 @@ int create_bpsh_struct(int ttype, int ptype, float az, float el, float hspeed, f
 			bpsh.vp = pspeed/f_frames_per_second;
 			bpsh.n_pre_pursuit_start = (int)floor(f_pre_pursuit_start_time/1000.0*f_frames_per_second);
 			bpsh.n_pursuit_start = (int)floor(f_pursuit_start_time/1000.0*f_frames_per_second);
+			bpsh.do_pursuit_jump_start = f_pursuit_jump_start;
 			if (is_test)
 			{
 				bpsh.n_blink = 0;
@@ -1819,7 +1823,7 @@ int my_trial_init()
 	/* Initialize counters et al */
 	/* Counts frames presented after fixation reached. See my_animate() and my_check_for_went(). 
 	 * Below you will see that we increment f_step_counter aftercalling step(0). That's because
-	 * the call to my_check_for_went is only made during the animation, not here.. */
+	 * the call to my_check_for_went is only made during the animation, not here. */
 	f_step_counter = 0;	
 	f_animation_complete_flag = 0;
 	f_pursuit_flag = 0;
@@ -1834,6 +1838,7 @@ int my_trial_init()
 	{
 		f_pbpsh = f_pbpshlist[f_trial_condition_index];
 		initialize_bpsh_struct(f_pbpsh);
+		
 		// EV TESTING
 		f_pbpsh->evType = f_evTest;
 		
@@ -1894,6 +1899,7 @@ int my_trial_init()
 		 * pursuit speed
 		 * 
 		 */
+
 		bcode_int(CHI_TRIAL_CONDITION, f_trial_condition_index);
 		bcode_float(CHF_AZIMUTH, f_pbpshlist[f_trial_condition_index]->alpha);
 		bcode_float(CHF_ELEVATION, f_pbpshlist[f_trial_condition_index]->theta);
