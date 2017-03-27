@@ -14,6 +14,48 @@ typedef struct bpsh_struct BPSHStruct;
 #define BPSH_TTYPE_NONE 0			/* this implies no dots. frozen dots is translation with vh=0 */
 #define BPSH_TTYPE_TRANSLATION 1
 
+
+/*
+ * Struct for saving graphics commands to use in "replay" situations.
+ */
+
+struct bpsh_save
+{
+	int istep;   /* step in animation */
+	
+	/* 
+	 * These vars indicate what updates, if any, need be done on this step
+	 */
+
+	int cam_update;
+	int ptrans_update;
+	int dot_update;
+	int dot_onoff;
+	int ospace_update;
+	int ospace_onoff;
+
+	/* 
+	 * Correction for saccades
+	 */
+	
+	float azcorrection;
+	float elcorrection;
+
+	/*
+	 * The structs used for the render update commands
+	 */
+	
+	PursuitTransformStruct ptrans;
+	CameraStruct cam;
+};
+
+typedef struct bpsh_save BPSHSave;
+
+
+
+
+
+
 struct bpsh_struct
 {
 	/* Graphic handles and structs */
@@ -24,6 +66,11 @@ struct bpsh_struct
 	
 	/* Ecode for raster plots */
 	int ecode;
+
+	/* Pointer to array of saved info -- only used when doing replay */
+	BPSHSave *psaved;
+	int nsaved;
+	int timestamp;
 	
 	/* 
 	 * For retinal stabilization, current eye velocity, cumulative corrections in 
@@ -95,6 +142,8 @@ struct bpsh_struct
 };
 
 
+
+
 /* 
  * Compute values in preparation for animation. Set values in struct 
  * up to "DO NOT INITIALIZE BELOW THIS LINE", then call this. After calling
@@ -106,5 +155,9 @@ int initialize_bpsh_struct(BPSHStruct *pbpsh);
 int bpsh_step(BPSHStruct *pbpsh, int istep);
 
 void print_bpsh(BPSHStruct *pbpsh);
+
+void bpsh_save(BPSHSave *array, int *pcount);
+
+int bpsh_step_replay(BPSHStruct *pbpsh, int istep);
 
 #endif /*BH_ANIMHELPER_H_*/

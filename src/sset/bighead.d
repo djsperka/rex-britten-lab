@@ -16,7 +16,7 @@
 #include "randomtrialgenerator.h"
 #include "animhelper.h"
 #include "bh_animhelper.h"
- 
+#include "bh_replay.h" 
  
 /*
  * ECODE values for this paradigm
@@ -127,6 +127,7 @@ int f_evTickCounter = 0;	// count ticks of clock between frames.
 int my_eye_window();
 int my_reward(int);
 int my_animate();
+int my_replay_animate();
 int create_bpsh_struct(int ttype, int ptype, float az, float el, float hspeed, float p, float pspeed, int is_test, int ecode);
 int check_heading_parameters();
 int check_pursuit_parameters();
@@ -169,6 +170,7 @@ int f_reward_step_size = 0;				/* if > 0, rewards increase by this amount each s
 #define TRIALTYPE_PREFERRED_PURSUIT 2
 #define TRIALTYPE_TEST 3
 #define TRIALTYPE_FIXED_ELEVATION 4
+#define TRIALTYPE_REPLAY 5
 #define SUBTYPE_HEADING_PURSUIT 0x1
 #define SUBTYPE_HEADING_SIMULATED_PURSUIT 0x2
 #define SUBTYPE_HEADING_PURSUIT_RETSTAB 0x4
@@ -190,7 +192,9 @@ NS,
 char hm_sv_vl[] = 	"Preferred Heading: 1\n"
 					"Preferred Pursuit: 2\n"
 					"Tests            : 3\n"
-					"FixedElevation   : 4";
+					"FixedElevation   : 4\n"
+                    "Replay           : 5\n\n"
+                    "For replay trials, see Replay menu\n\n";
 
 
 
@@ -231,6 +235,7 @@ float f_elevation_max_deg = 90;
 int f_azimuth_nangles = 8;
 int f_elevation_nangles = 5;
 float f_heading_speed = 3;
+
 
 VLIST heading_vl[] = {
 "heading_speed", &f_heading_speed, 0, NP, 0, ME_FLOAT,
@@ -492,7 +497,34 @@ NS,
 };
 
 char hm_comm[] = "";
- 
+
+
+/* command saving vars */
+int f_savecommands = 0;
+char f_savecommandsfolder[128];
+char f_savecommandsfile[256];	/* This will be full path for the file */
+char f_replaybase[32];         /* replay file basename (excluding .cmd and path)*/
+int f_use_replay_file = 0;
+
+/* Reward variables for replay trials */
+int f_fix_initial = -1;				/* Initial fixation point in replay trial */
+int f_fix_next_reward = -1;	/* Next time reward is due */
+
+
+
+VLIST savecommands_vl[] = {
+"none/save(0/1)", &f_savecommands, NP, NP, 0, ME_DEC,
+"folder", f_savecommandsfolder, NP, NP, 0, ME_STR,
+"replay_base", f_replaybase, NP, NP, 0, ME_STR,
+NS,
+};
+
+char hm_savecommands[] = "Set save_commands to\n 1 to save\n 0 to not save\nFolder is used to save command files.\nWhen saving, current REX data file name used, .bpsh appended.\nWhen doing replay, replay_base is base filename to be used for replay commands.";
+
+
+
+
+
 
 MENU umenus[] = {
 {"Main", &state_vl, NP, NP, 0, NP, hm_sv_vl}, 
@@ -508,6 +540,7 @@ MENU umenus[] = {
 {"viewing volume", &vvol_vl, NP, NP, 0, NP, hm_vvol},
 {"background", &background_vl, NP, NP, 0, NP, hm_background}, 
 {"communication", &comm_vl, NP, NP, 0, NP, hm_comm}, 
+{"replay", &savecommands_vl, NP, NP, 0, NP, hm_savecommands},
 {NS},
 };
 
@@ -986,9 +1019,24 @@ int my_exp_init()
 			}
 			break;
 		}
+	    case TRIALTYPE_REPLAY:
+		{
+			// load replay file
+			if (generate_replay_trials())
+			{
+				dprintf("Error generating fixed elevation test trials.\n");
+				f_exp_abort = 1;
+				return ERRORCD;
+			}
+			else
+			{
+				dprintf("Replay trials, %d generated.\n", f_nbpshlist);
+			}
+			break;
+        }
 		default:
 		{
-			dprintf("Trialtype must be 1, 2, or 3.\n");
+			dprintf("Trialtype must be 1, 2, 3, 4, or 5.\n");
 			f_exp_abort = 1;
 			return ERRORCD;
 			break;
@@ -1020,6 +1068,55 @@ int my_exp_init()
 	dprintf("Create random trial generator: %d trialspecs, %d trials each, blocksize %d\n", f_nbpshlist, f_ntrials, f_nblocksize);
 	f_prtgen = rtg_create(f_nbpshlist, f_ntrials, f_nblocksize);
 
+	
+	
+	if (f_savecommands==1)
+	{
+		/* 
+		 * Create a buffer large enough to hold BPSHSave structs for this expt.
+		 * We only save the structs in the case of (pursuit + retinal stabilization)
+		 * The call to bpsh_save will magically cause stuff to get saved in the
+		 * array, with the counter being incremented appropriately.
+		 */
+		
+		int nsave = (int)floor(f_trial_end_time/1000.0*f_frames_per_second);
+
+			
+		/* 
+		 * Check path and filename. Must be saving data (i.e. we must have a data file name in 
+		 * i_b->inthdr.i_name). Hopefully user gave us a valid folder in f_savecommandsfolder....
+		 * but if not we just stick the files in /root
+		 */
+		if (strlen(f_savecommandsfolder) == 0)
+		{
+			strcpy(f_savecommandsfolder, "/root");
+		}
+		if (f_savecommandsfolder[strlen(f_savecommandsfolder)-1] == '/')
+		{
+			f_savecommandsfolder[strlen(f_savecommandsfolder)-1] = 0;
+		}
+		dprintf("Savecommands path is %s\n", f_savecommandsfolder);
+			
+		if (strlen(i_b->inthdr.i_name) == 0)
+		{
+			dprintf("Must be saving data to save commands.\n");
+			rxerr("Must be saving data to save commands.");
+			f_savecommands = 0;
+			f_exp_abort = 1;
+			return ERRORCD;
+		}
+		else
+		{
+			f_savecommandsfile[0] = 0;  // in case we've done another reset, don't append another file path
+			strcat(f_savecommandsfile, f_savecommandsfolder);
+			strcat(f_savecommandsfile, "/");
+			strcat(f_savecommandsfile, i_b->inthdr.i_name);
+			strcat(f_savecommandsfile, ".bpsh");
+			bh_replay_create_output_file(f_savecommandsfile, nsave);
+		}
+			
+	} 
+
 	/*
 	 * Drop experimental settings into efile.
 	 */
@@ -1031,6 +1128,52 @@ int my_exp_init()
 	return 0;
 }
 
+	
+	
+int generate_replay_trials()
+{
+	int status = 0;
+	int i;
+	
+	// make sure a folder was specified in replay menu
+	if (strlen(f_savecommandsfolder) == 0)
+	{
+		strcpy(f_savecommandsfolder, "/root");
+	}
+	if (f_savecommandsfolder[strlen(f_savecommandsfolder)-1] == '/')
+	{
+		f_savecommandsfolder[strlen(f_savecommandsfolder)-1] = 0;
+	}
+	dprintf("Savecommands path is %s\n", f_savecommandsfolder);
+
+	if (strlen(f_replaybase) == 0)
+	{
+		dprintf("Must enter a basename (no .ext) for the previously saved command file.\nSee \"replay\" menu.\n");
+		rxerr("Must enter a basename (no .ext) for the previously saved command file.\nSee \"replay\" menu.\n");
+		f_exp_abort = 1;
+		return ERRORCD;
+	}
+	else
+	{
+		f_savecommandsfile[0] = 0;  // in case we've done another reset, don't append another file path
+		strcat(f_savecommandsfile, f_savecommandsfolder);
+		strcat(f_savecommandsfile, "/");
+		strcat(f_savecommandsfile, f_replaybase);
+		strcat(f_savecommandsfile, ".bpsh");
+		dprintf("Loading trials from replay file %s\n", f_savecommandsfile);
+		f_nbpshlist = bh_replay_load(f_savecommandsfile, f_pbpshlist, MAX_BPSHLIST);
+		
+		//for (i=0; i<f_nbpshlist; i++)
+		//  print_bpsh(f_pbpshlist[i]);
+	}
+	return 0;
+}
+	
+					
+			
+
+	
+	
 
 /*
  * generate_fixed_elevation_trials()
@@ -1847,7 +1990,11 @@ int my_trial_init()
 			dprintf("=======Trial index %d =============\n", f_trial_condition_index);
 			print_bpsh(f_pbpsh);
 		}
-		bpsh_step(f_pbpsh, 0);
+		if (f_trialtype != TRIALTYPE_REPLAY)
+		  bpsh_step(f_pbpsh, 0);
+		else
+		  bpsh_step_replay(f_pbpsh, 0);
+		
 		f_step_counter = 1;				
 		
 		// Set state times
@@ -1909,6 +2056,15 @@ int my_trial_init()
 		bcode_int(CHI_TTYPE, f_pbpshlist[f_trial_condition_index]->ttype);
 		bcode_int(CHI_PTYPE, f_pbpshlist[f_trial_condition_index]->ptype);
 		
+		/*
+		 * Save timestamp -- this value used as a tag to identify replay trials
+		 */
+		
+		if (f_trialtype == TRIALTYPE_TEST && 
+			f_pbpshlist[f_trial_condition_index]->ptype == BPSH_PTYPE_RETSTAB)
+		{
+			bh_replay_new_trial(f_pbpshlist[f_trial_condition_index], getClockTime());
+		}
 	}
 	else
 	{
@@ -1942,7 +2098,13 @@ int my_animate()
 	int iret = 0;
 	int step_status = 0;
 
-	step_status = bpsh_step(f_pbpsh, f_step_counter);
+	//step_status = bpsh_step(f_pbpsh, f_step_counter);
+
+	if (f_trialtype != TRIALTYPE_REPLAY)
+	  step_status = bpsh_step(f_pbpsh, f_step_counter);
+	else
+	  step_status = bpsh_step_replay(f_pbpsh, f_step_counter);
+		
 	
 	if (step_status == -1)
 	{
@@ -2182,7 +2344,25 @@ int my_trial_done(int icorrect)
 	/* Show status of random trial counts. */
 	//show_trials_status();
 
+
+	/*
+	 * save commands if needed. 
+	 * Only saving commands for RETSTAB
+	 */
 	
+	if (f_trialtype == TRIALTYPE_TEST && 
+		f_pbpshlist[f_trial_condition_index]->ptype == BPSH_PTYPE_RETSTAB)
+	{			
+		if (icorrect)
+		{
+			bh_replay_write_trial();
+		}
+		else
+		{
+			bh_replay_clear_trial();
+		}
+		
+	}	
 	return 0;
 }
 
@@ -2614,7 +2794,8 @@ begin	first:
 		to fixpt_on
 	fixation:
 		code FIXCD
-		to animate
+        /*to replay_animate on TRIALTYPE_REPLAY = f_trialtype*/
+	    to animate
 	animate:
 		do my_animate()
 		to animate_wait
@@ -2703,3 +2884,9 @@ evl_set {
 		code EVL_DELAY
 		to evl_wait on -SF_GOOD & sacflags
 }
+
+
+
+/* Local Variables: */
+/* compile-command: "make sf=bighead LSRC=\"bh_animhelper.c bh_evloop.c bh_replay.c\""  */
+/* End: */
