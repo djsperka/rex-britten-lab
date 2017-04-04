@@ -65,7 +65,6 @@
 #define EYE_WINDOW_TARGETS_OFF		0x80
 #define EYE_WINDOW_ALL_OFF			(EYE_WINDOW_FIXPT_OFF | EYE_WINDOW_TARGETS_OFF)
 
-
 char f_charbuf[2048];			/* Really really big char for sprinting errors. */
 int f_never = -1;				/* never var, quoth the raven */
 int f_seed_used = 0;			/* indicates whether we've seeded the random number generator or not */
@@ -596,6 +595,8 @@ MENU umenus[] = {
 #define CHI_OSPACE_G				156 // f_ospace_dot_color[1]
 #define CHI_OSPACE_B				157 // f_ospace_dot_color[2]
 #define CHI_FRAMES_PER_SECOND		158	// f_frames_per_second
+
+#define CHI_REPLAY_TIMESTAMP        170 // timestamp from original replay trial
 
 /*
  * channel definitions for per-trial bcodes
@@ -1163,8 +1164,21 @@ int generate_replay_trials()
 		dprintf("Loading trials from replay file %s\n", f_savecommandsfile);
 		f_nbpshlist = bh_replay_load(f_savecommandsfile, f_pbpshlist, MAX_BPSHLIST);
 		
-		//for (i=0; i<f_nbpshlist; i++)
-		//  print_bpsh(f_pbpshlist[i]);
+		/* 
+		 * re-set some members of the BPSHStruct - handle values - to make sure
+		 * graphics commands work.
+		 * Set eyewx=eyewy=0 because we are converting these trials to 
+		 * simulated pursuit -- and fixpt is always at center. 
+		 */
+		
+		for (i-0; i<f_nbpshlist; i++)
+		{
+			f_pbpshlist[i]->hdot = f_fixpt_handle;
+			f_pbpshlist[i]->hptrans = f_ptrans_handle;
+			f_pbpshlist[i]->hospace = f_ospace_handle;
+			f_pbpshlist[i]->eyewx = 0;
+			f_pbpshlist[i]->eyewy = 0;
+		}
 	}
 	return 0;
 }
@@ -1981,6 +1995,19 @@ int my_trial_init()
 	{
 		f_pbpsh = f_pbpshlist[f_trial_condition_index];
 		initialize_bpsh_struct(f_pbpsh);
+
+		// Prepare for saving RETSTAB data if requested
+		
+		if (f_trialtype == TRIALTYPE_TEST && 
+			f_pbpshlist[f_trial_condition_index]->ptype == BPSH_PTYPE_RETSTAB &&
+			f_savecommands==1)
+		{
+			bh_replay_new_trial(f_pbpshlist[f_trial_condition_index], getClockTime());
+		}
+
+	
+
+		
 		
 		// EV TESTING
 		f_pbpsh->evType = f_evTest;
@@ -2055,16 +2082,13 @@ int my_trial_init()
 		bcode_float(CHF_PURSUIT_SPEED, f_pbpshlist[f_trial_condition_index]->vp);
 		bcode_int(CHI_TTYPE, f_pbpshlist[f_trial_condition_index]->ttype);
 		bcode_int(CHI_PTYPE, f_pbpshlist[f_trial_condition_index]->ptype);
-		
-		/*
-		 * Save timestamp -- this value used as a tag to identify replay trials
-		 */
-		
-		if (f_trialtype == TRIALTYPE_TEST && 
-			f_pbpshlist[f_trial_condition_index]->ptype == BPSH_PTYPE_RETSTAB)
+
+		if (f_trialtype == TRIALTYPE_REPLAY)
 		{
-			bh_replay_new_trial(f_pbpshlist[f_trial_condition_index], getClockTime());
+			bcode_int(CHI_REPLAY_TIMESTAMP, f_pbpshlist[f_trial_condition_index]->timestamp);
+			dprintf("bcode %d: timestamp %d\n", CHI_REPLAY_TIMESTAMP, f_pbpshlist[f_trial_condition_index]->timestamp);
 		}
+		
 	}
 	else
 	{
@@ -2351,7 +2375,8 @@ int my_trial_done(int icorrect)
 	 */
 	
 	if (f_trialtype == TRIALTYPE_TEST && 
-		f_pbpshlist[f_trial_condition_index]->ptype == BPSH_PTYPE_RETSTAB)
+		f_pbpshlist[f_trial_condition_index]->ptype == BPSH_PTYPE_RETSTAB &&
+		f_savecommands==1)
 	{			
 		if (icorrect)
 		{
@@ -2887,6 +2912,3 @@ evl_set {
 
 
 
-/* Local Variables: */
-/* compile-command: "make sf=bighead LSRC=\"bh_animhelper.c bh_evloop.c bh_replay.c\""  */
-/* End: */

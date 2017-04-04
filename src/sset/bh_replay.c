@@ -4,6 +4,7 @@
 BPSHStruct f_bpshCurrent;
 BPSHSave *f_array = NULL;
 int f_arrayCount = 0;
+int f_arraySize = 0;
 FILE *f_fp = NULL;
 int f_timestampCurrent = 0;
 
@@ -37,6 +38,11 @@ int bh_replay_create_output_file(char *filename, int nframes_per_trial)
 		dprintf("Cannot allocate space for saving %d frames per trial!\n", nframes_per_trial);
 		return -1;
 	}
+	else
+	{
+		f_arraySize = nframes_per_trial;
+	}
+	
 
 	// check if file exists
 	if (f_fp = fopen(filename, "rb"))
@@ -70,13 +76,14 @@ int bh_replay_create_output_file(char *filename, int nframes_per_trial)
  * Return the current count of saves.
  */
 
-int bh_replay_save_frame(int istep, int cam_update, int ptrans_update, int dot_update, int dot_onoff, int ospace_update, int ospace_onoff, BPSHStruct *pbpsh)
+int bh_replay_save_frame(int istep, int cam_update, int ptrans_update, int dot_update, int dot_onoff, int ospace_update, int ospace_onoff, int step_status, BPSHStruct *pbpsh)
 {
 	int status = 0;
 	BPSHSave *psave = f_array + f_arrayCount;
 	if (!f_fp) return 0;
 
 	psave->istep = istep;
+	psave->step_status = step_status;
 	psave->cam_update = cam_update;
 	psave->ptrans_update = ptrans_update;
 	psave->dot_update = dot_update;
@@ -89,6 +96,9 @@ int bh_replay_save_frame(int istep, int cam_update, int ptrans_update, int dot_u
 	psave->elcorrection = pbpsh->elcorrection;
 	
 	f_arrayCount++;
+	
+	dprintf("saved step %d, count %d\n", istep, f_arrayCount);
+	
 	return f_arrayCount;
 }
 
@@ -121,6 +131,7 @@ int bh_replay_write_trial()
 
 void bh_replay_clear_trial()
 {
+	dprintf("clear trial\n");
 	f_arrayCount = 0;
 }
 

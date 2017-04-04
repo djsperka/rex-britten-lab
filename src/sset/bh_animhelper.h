@@ -22,6 +22,7 @@ typedef struct bpsh_struct BPSHStruct;
 struct bpsh_save
 {
 	int istep;   /* step in animation */
+	int step_status; /* status value returned by bpsh_step for this step */
 	
 	/* 
 	 * These vars indicate what updates, if any, need be done on this step

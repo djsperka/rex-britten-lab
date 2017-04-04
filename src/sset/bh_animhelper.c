@@ -422,15 +422,17 @@ int bpsh_step(BPSHStruct *pbpsh, int istep)
 	}
 
 	
+	// return value holds bit values indicating key frames in the animation
+	if (pstatus < 0 || hstatus < 0) status = -1;
+	else status = (((pstatus&0xff) << 8) | (hstatus&0xff));
+	
 	// save commands if necessary
 	if (pbpsh->ptype == BPSH_PTYPE_RETSTAB)
 	{
-		int i = bh_replay_save_frame(istep, cam_update, ptrans_update, dot_update, dot_onoff, ospace_update, ospace_onoff, pbpsh);
+		int i = bh_replay_save_frame(istep, cam_update, ptrans_update, dot_update, dot_onoff, ospace_update, ospace_onoff, status, pbpsh);
 	}		
-	
-	// return value holds bit values indicating key frames in the animation
-	if (pstatus < 0 || hstatus < 0) return -1;
-	else return ((pstatus&0xff) << 8) | (hstatus&0xff);
+
+	return status;
 }
 
 int bpsh_step_replay(BPSHStruct *pbpsh, int istep)
@@ -458,275 +460,58 @@ int bpsh_step_replay(BPSHStruct *pbpsh, int istep)
 	psavedStuff = &pbpsh->psaved[istep];
 
 	
-	
-	dprintf("step %d(%d) cam %d ptrans %d dot %d/%d ospace %d/%d \n", 
+	/*
+	dprintf("step %d(%d) cam %d ptrans %d dot %d/%d ospace %d/%d corr %d/%d\n", 
 			istep, psavedStuff->istep, 
 			psavedStuff->cam_update, psavedStuff->ptrans_update, 
 			psavedStuff->dot_update, psavedStuff->dot_onoff, 
-			psavedStuff->ospace_update, psavedStuff->ospace_onoff);
+			psavedStuff->ospace_update, psavedStuff->ospace_onoff,
+			IPRT(psavedStuff->azcorrection, 1000), 
+			IPRT(psavedStuff->elcorrection, 1000));
+	 */
 	
+	// ospace and dot on/off. 
+	// Note that we use the onoff info from the BPSHSave struct for this frame. 
 
-	return 0;
-}
+	if (psavedStuff->dot_update)
+	{
+		// turn dot on or off for blink trials
+		render_onoff(&pbpsh->hdot, psavedStuff->dot_onoff, ONOFF_NO_FRAME);
+	}
+	if (psavedStuff->ospace_update)
+	{
+		// turn ospace on when needed
+		render_onoff(&pbpsh->hospace, psavedStuff->ospace_onoff, ONOFF_NO_FRAME);
+	}
 
+	// Do ptrans update first if needed, with no translation. 
 	
-	
-#ifdef UNDER_CONSTRUCTION
-	
-	
-	// Assuming that the trial used to create the replay struct was of PTYPE_RETSTAB!
-	// 
-	// Like the original case, in bpsh_step, I separate the operations/commands due to 
-	// translation and pursuit to mimic the structure of the logic in bpsh_step. 
-	// 
-	if (istep == 0)
+	if (psavedStuff->ptrans_update)
 	{
-		replayCam.ex = replayCam.ey = replayCam.ez = 0;
-		replayCam.dx = replayCam.dy = 0;
-		replayCam.dz = -1;
-		replayCam.ux = replayCam.uz = 0;
-		replayCam.uy = 1;
-		replayCam.flag = CAMERA_DEFAULT;
-		replay_cam_update = 1;				
-	}
-	if (istep == 1) 
-	{
-		if (pbpsh->ttype == BPSH_TTYPE_TRANSLATION)
-		{
-			ospace_onoff = HANDLE_ON;
-			ospace_update = 1;
-		}
-		hstatus = 1;
-	}
-	else if (istep < pbpsh->n_all_done)
-	{
-		// Nothing to do here, but I'm leaving this here as a note. 
-		// Translation steps are all contained in the saved data, and will 
-		// be executed when we issue camera commands.
+		CameraStruct pcam;
+		pcam.a0 = psavedStuff->ptrans.phi;
+		pcam.a1 = psavedStuff->ptrans.beta;
+		pcam.a2 = psavedStuff->ptrans.rho;
+		pcam.ex = pcam.ey = pcam.ez = 0;
+		pcam.dx = pcam.dy = pcam.dz = 0;
+		pcam.ux = pcam.uy = pcam.uz = 0;
+		render_camera_s(&pcam);
 	}
 	
-	
-	// Now the rotational "pursuit" commands. 
-	// I assume that the trial which led us here is of type RETSTAB, which means
-	// the trial had a pursuit component. Each step during pursuit period had an update
-	// to the ptrans, 
+	// Now pass camera update if needed. The camera update will have translation
+	// and the correction(s). 
 
-	
-	
-	if (istep == 0)
-	{
-		/*
-		 * Initialization step
-		 */
-		/* Place dot at fixpt ref position. See above. */
-		if (pbpsh->do_pursuit_jump_start)
-		  pbpsh->ptrans.phi = pbpsh->phiPS;
-		else
-		  pbpsh->ptrans.phi = pbpsh->phi0;
-		pbpsh->ptrans.beta = pbpsh->beta;
-		pbpsh->ptrans.rho = pbpsh->rho;
-		ptrans_update = 1;
-
-		// Camera gets a similar initialization. 
-		// We issue the camera update here because subsequent 
-		// steps will work from that initial position. Setting the 
-		// initial pos here prevents a huge step from occurring on 
-		// istep==1.
-				
-				
-		pbpsh->cam.a0 = pbpsh->phi0;		
-		pbpsh->cam.a1 = pbpsh->beta;
-		pbpsh->cam.a2 = pbpsh->rho;
-		pbpsh->cam.flag = CAMERA_PURSUIT;
-		cam_update = 1;
-	}
-	else if (istep < pbpsh->n_pre_pursuit_start)
-	{
-		/*
-		 * Delay phase: no movement, no commands issued.
-		 * On first frame/step of the delay (frame 1) return "1" status. This seems kinda dumb, I think,
-		 * but its consistent with the motion case.....
-		 */
-		if (istep == 1) pstatus = 1;
-	}
-	else if (istep < pbpsh->n_all_done)
-	{
-		int pstep = istep - pbpsh->n_pre_pursuit_start;
-		float phi = pbpsh->phi0 + pstep * pbpsh->vp;
-			
-			// Fix phiWindow position when using pursuit_jump_start
-			if (pbpsh->do_pursuit_jump_start && 
-				istep < pbpsh->n_pursuit_start &&
-				pbpsh->ptype != BPSH_PTYPE_SIMULATED)
-			{
-				jump_start_eye_window = 1;
-			}
-
-			if (pstep < 5 && jump_start_eye_window)
-			  dprintf("pstep==%d rho=%d beta=%d phi=%d\n", pstep, IPRT(pbpsh->ptrans.rho, 100), IPRT(pbpsh->ptrans.beta, 100), IPRT(pbpsh->ptrans.phi, 100));
-
-			/*
-			 * Movement phase. On first frame/step where motion occurs send "2" return status.
-			 */
-
-			if (istep == pbpsh->n_pre_pursuit_start) pstatus |= 2;
-			else if (istep == pbpsh->n_pursuit_start) pstatus |= 4;
-			switch (pbpsh->ptype)
-			{
-				case BPSH_PTYPE_SIMULATED:
-				{
-					pbpsh->cam.a0 = phi;		
-					pbpsh->cam.a1 = pbpsh->beta;
-					pbpsh->cam.a2 = pbpsh->rho;
-					pbpsh->cam.flag = CAMERA_PURSUIT;
-					cam_update = 1;			
-					break;
-				}
-				case BPSH_PTYPE_PURSUIT:
-				{
-					pbpsh->ptrans.phi = phi;
-					pbpsh->ptrans.beta = pbpsh->beta;
-					pbpsh->ptrans.rho = pbpsh->rho;
-					ptrans_update = 1;
-					break;
-				}
-				case BPSH_PTYPE_RETSTAB:
-				{
-					float x, y;
-					int estatus;
-					
-					// Update dot position
-					pbpsh->ptrans.phi = phi;
-					pbpsh->ptrans.beta = pbpsh->beta;
-					pbpsh->ptrans.rho = pbpsh->rho;
-					ptrans_update = 1;
-
-					// TODO - retinal stabilization should be turned off when 
-					// using jump_start???
-					
-					// Get current x,y avg. Make our best guess at correction. 					
-					if (!evloop_xy(&x, &y))
-					{
-						//dprintf("xy %d %d\n", IPRT(x, 10), IPRT(y, 10));
-						if (pbpsh->last_good_is_valid)
-						{
-							//dprintf("using last good  %d %d\n", IPRT(pbpsh->last_good_x, 10), IPRT(pbpsh->last_good_y, 10));
-							pbpsh->last_delta_x = x - pbpsh->last_good_x;
-							pbpsh->last_delta_y = y - pbpsh->last_good_y;
-							pbpsh->last_delta_is_valid = 1;
-							pbpsh->last_good_x = x;
-							pbpsh->last_good_y = y;
-							pbpsh->last_good_is_valid = 1;
-							pbpsh->azcorrection -= pbpsh->last_delta_x/40.0;
-							pbpsh->elcorrection -= pbpsh->last_delta_y/40.0;
-							//dprintf("ongoing delta %d %d\n", IPRT(pbpsh->last_delta_x, 10), IPRT(pbpsh->last_delta_y, 10));
-						}
-						else if (pbpsh->last_delta_is_valid)
-						{
-							pbpsh->azcorrection -= pbpsh->last_delta_x/40.0;
-							pbpsh->elcorrection -= pbpsh->last_delta_y/40.0;
-							pbpsh->last_good_x = x;
-							pbpsh->last_good_y = y;
-							pbpsh->last_good_is_valid = 1;
-							//dprintf("xy ok last xy NOT delta %d %d\n", IPRT(pbpsh->last_delta_x, 10), IPRT(pbpsh->last_delta_y, 10));
-						}
-						else
-						{
-							//dprintf("xy ok last xy NOT delta NOT\n");
-							pbpsh->last_good_x = x;
-							pbpsh->last_good_y = y;
-							pbpsh->last_good_is_valid = 1;
-						}							
-					}
-					else
-					{
-						pbpsh->last_good_is_valid = 0;
-						if (pbpsh->last_delta_is_valid)
-						{
-							//dprintf("XY BAD use last delta %d %d corr %d %d\n", IPRT(pbpsh->last_delta_x, 10), IPRT(pbpsh->last_delta_y, 10), IPRT(pbpsh->azcorrection, 10), IPRT(pbpsh->elcorrection, 10));
-							pbpsh->azcorrection -= pbpsh->last_delta_x/40.0;
-							pbpsh->elcorrection -= pbpsh->last_delta_y/40.0;
-						}
-						else
-						{
-							//dprintf("xy bad last delta bad NO CORR  %d %d\n", IPRT(pbpsh->azcorrection, 10), IPRT(pbpsh->elcorrection, 10));
-						}	
-					}	
-					pbpsh->cam.a0 = pbpsh->azcorrection;
-					pbpsh->cam.a1 = pbpsh->elcorrection;
-					pbpsh->cam.flag = CAMERA_AZIMUTH;
-					cam_update = 1;	
-						
-					break;
-				}
-			}
-
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-
-	// The camera update should only involve translation, but it will also have the 
-	// stabilization corrections. ZZZZZZZZZZZ
 	if (psavedStuff->cam_update)
 	{
-		// update camera position and pointing direction
 		render_camera_s(&psavedStuff->cam);
 	}
 	
 	
-	if (ptrans_update)
-	{
-		PursuitTransformStruct ptrans;
-		
-		// update pursuit trans - this affects position of dot
-		render_update(pbpsh->hptrans, &pbpsh->ptrans, sizeof(PursuitTransformStruct), 0);
-
-		// Compute position of dot on screen - eyewx, eyewy are used for eye window
-		memcpy(&ptrans, &pbpsh->ptrans, sizeof(PursuitTransformStruct));
-		if (jump_start_eye_window)
-		  ptrans.phi = pbpsh->phiPS;
-		set_eyew(&ptrans, &pbpsh->eyewx, &pbpsh->eyewy);
-	}
-	if (dot_update)
-	{
-		// turn dot on or off for blink trials
-		render_onoff(&pbpsh->hdot, dot_onoff, ONOFF_NO_FRAME);
-	}
-	if (ospace_update)
-	{
-		// turn ospace on when needed
-		render_onoff(&pbpsh->hospace, ospace_onoff, ONOFF_NO_FRAME);
-	}
-
-	
-	// save commands if necessary
-	if (pbpsh->ptype == BPSH_PTYPE_RETSTAB)
-	{
-		int i = bh_replay_save_frame(istep, cam_update, ptrans_update, dot_update, dot_onoff, ospace_update, ospace_onoff, &pbpsh->ptrans, &pbpsh->cam);
-	}		
-	
-	// return value holds bit values indicating key frames in the animation
-	if (pstatus < 0 || hstatus < 0) return -1;
-	else return ((pstatus&0xff) << 8) | (hstatus&0xff);
-
+	return psavedStuff->step_status;
 }
-#endif
 
 
-
+	
 void set_eyew(PursuitTransformStruct *ptrans, float *eyewx, float *eyewy)
 {
 	float A, B, C;
