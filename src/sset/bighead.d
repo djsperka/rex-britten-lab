@@ -659,6 +659,8 @@ int parse_testspec(int flag, MENU *mp, char *astr, VLIST *vlp, int *tvadd)
 	char tmpstr[P_LNAME];
 	char *pc;
 
+	dprintf("parse testspec len %d\n", strlen(astr));
+
 	/*
 	 * Make a copy of the input strint 'astr' and convert all '/' to ' '.
 	 */	
@@ -789,6 +791,7 @@ int my_render_init()
 	PursuitTransformStruct ptrans;
 
 	dprintf("Initializing render\n");
+	
 
 	// Get screen resolution and frame rate, then init pixel conversion.
 	render_get_parameters(&f_width, &f_height, &f_frames_per_second);
@@ -958,6 +961,20 @@ int my_check_for_dot_handle()
 int my_exp_init()
 {
 	dprintf("my_exp_init()\n");
+	
+	// If we are restarting, we may have previously allocated space in 
+	// f_pbpshlist.
+	if (f_nbpshlist)
+	{
+		int i;
+		for (i=0; i<f_nbpshlist; i++)
+		{
+			if (f_pbpshlist[i]->psaved) free(f_pbpshlist[i]->psaved);
+			free(f_pbpshlist[i]);
+			f_pbpshlist[i] = NULL;
+		}
+	}
+	
 	f_ms_per_frame = 1000/f_frames_per_second;
 	f_all_done = 0;
 	f_exp_abort = 0;
@@ -1113,7 +1130,11 @@ int my_exp_init()
 			strcat(f_savecommandsfile, "/");
 			strcat(f_savecommandsfile, i_b->inthdr.i_name);
 			strcat(f_savecommandsfile, ".bpsh");
-			bh_replay_create_output_file(f_savecommandsfile, nsave);
+			if (bh_replay_create_output_file(f_savecommandsfile, nsave))
+			{
+				f_exp_abort = 1;
+				return ERRORCD;
+			}
 		}
 			
 	} 

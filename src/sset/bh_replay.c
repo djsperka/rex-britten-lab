@@ -22,6 +22,8 @@ void bh_replay_new_trial(BPSHStruct *pbpsh, int timestamp)
 /* 
  * create (and empty) output filename for saving replay info.
  * Will not clobber existing files! 
+ * Also allocates f_array, which is an array of "BPSHSave" 
+ * struct, each of which saves info for a single frame. 
  * Returns 0 on success, -1 on failure (because file exists or
  * memory allocation failed)
  */
@@ -48,7 +50,7 @@ int bh_replay_create_output_file(char *filename, int nframes_per_trial)
 	if (f_fp = fopen(filename, "rb"))
 	{
 		fclose(f_fp);
-		dprintf("Cannot open file %s: already exists.\n", filename);
+		dprintf("Cannot create file %s: already exists.\n", filename);
 		f_fp = NULL;
 		return -1;
 	}
