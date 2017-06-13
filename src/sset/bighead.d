@@ -2017,9 +2017,10 @@ int my_trial_init()
 		f_pbpsh = f_pbpshlist[f_trial_condition_index];
 		initialize_bpsh_struct(f_pbpsh);
 
-		// Prepare for saving RETSTAB data if requested
+		// Prepare for saving RETSTAB data if requested. 
+		// TRIALTYPE_TEST and TRIALTYPE_FIXED_HEADING can have RETSTAB
 		
-		if (f_trialtype == TRIALTYPE_TEST && 
+		if ((f_trialtype == TRIALTYPE_TEST || f_trialtype == TRIALTYPE_FIXED_ELEVATION) && 
 			f_pbpshlist[f_trial_condition_index]->ptype == BPSH_PTYPE_RETSTAB &&
 			f_savecommands==1)
 		{
@@ -2395,7 +2396,7 @@ int my_trial_done(int icorrect)
 	 * Only saving commands for RETSTAB
 	 */
 	
-	if (f_trialtype == TRIALTYPE_TEST && 
+	if ((f_trialtype == TRIALTYPE_TEST || f_trialtype == TRIALTYPE_FIXED_ELEVATION) && 
 		f_pbpshlist[f_trial_condition_index]->ptype == BPSH_PTYPE_RETSTAB &&
 		f_savecommands==1)
 	{			
