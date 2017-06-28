@@ -495,6 +495,7 @@ int bpsh_step_replay(BPSHStruct *pbpsh, int istep)
 		pcam.ex = pcam.ey = pcam.ez = 0;
 		pcam.dx = pcam.dy = pcam.dz = 0;
 		pcam.ux = pcam.uy = pcam.uz = 0;
+		pcam.flag = 
 		render_camera_s(&pcam);
 	}
 	
