@@ -771,6 +771,9 @@ void init_bighead(void)
 	// initialize tcpip - must only do this OR gpib - NOT BOTH!!!!
 	status = init_tcpip(f_local_addr, f_remote_addr, f_remote_port, 0);
 
+	// clean up residuals from replay
+	bh_replay_close_output_file();
+	
 	dprintf("init_bighead() - done.\n");
 	
 }
@@ -865,7 +868,14 @@ int my_render_init()
 	ptrans.rho = 0;
 	ptrans.ghandle = 0;
 	ptrans.placeholder = 0;
-	render_pursuittrans_p(&ptrans, PBeaconGHandle);
+	
+	// new render defaults to using perspective beacon as parent. 
+	// The old pre-defined handle values are no longer valid.  
+	//render_pursuittrans_p(&ptrans, PBeaconGHandle);
+
+	dprintf("send ptrans...\n");
+	render_pursuittrans_p(&ptrans, 0);
+	dprintf("send ptrans...done\n");
 
 	return status;
 }

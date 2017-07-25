@@ -34,15 +34,12 @@ int bh_replay_create_output_file(char *filename, int nframes_per_trial)
 	if (f_array) free(f_array);
 	f_array = NULL;
 	f_arrayCount = 0;
-	f_array = (BPSHSave *)calloc(nframes_per_trial, sizeof(BPSHSave));
+	f_arraySize = nframes_per_trial+1;
+	f_array = (BPSHSave *)calloc(f_arraySize, sizeof(BPSHSave));
 	if (!f_array)
 	{
 		dprintf("Cannot allocate space for saving %d frames per trial!\n", nframes_per_trial);
 		return -1;
-	}
-	else
-	{
-		f_arraySize = nframes_per_trial;
 	}
 	
 
@@ -65,7 +62,7 @@ int bh_replay_create_output_file(char *filename, int nframes_per_trial)
 	}
 	else
 	{
-		dprintf("Allocated space for %d frames.\n", nframes_per_trial);
+		dprintf("Allocated space for %d frames, total array size %d.\n", nframes_per_trial, f_arraySize);
 		dprintf("Saving replay info to file %s\n", filename);
 	}
 	
@@ -146,6 +143,8 @@ void bh_replay_close_output_file()
 	  free(f_array);
 	f_array = NULL;
 	f_fp = NULL;
+	f_arrayCount = 0;
+	f_arraySize = 0;
 }
 
 

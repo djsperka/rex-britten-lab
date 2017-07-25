@@ -484,7 +484,19 @@ int bpsh_step_replay(BPSHStruct *pbpsh, int istep)
 		render_onoff(&pbpsh->hospace, psavedStuff->ospace_onoff, ONOFF_NO_FRAME);
 	}
 
-	// Do ptrans update first if needed, with no translation. 
+
+	
+	// Now pass camera update if needed. The camera update will have translation
+	// and the stabilization correction(s). 
+
+	if (psavedStuff->cam_update)
+	{
+		render_camera_s(&psavedStuff->cam);
+	}
+
+	// What was a ptrans update in a pursuit trial will become
+	// a camera update here. 
+	// 
 	
 	if (psavedStuff->ptrans_update)
 	{
@@ -495,17 +507,31 @@ int bpsh_step_replay(BPSHStruct *pbpsh, int istep)
 		pcam.ex = pcam.ey = pcam.ez = 0;
 		pcam.dx = pcam.dy = pcam.dz = 0;
 		pcam.ux = pcam.uy = pcam.uz = 0;
-		pcam.flag = 
+		pcam.flag = CAMERA_MULT | CAMERA_PURSUIT;
+
+		
+		// If pursuit jump start was used during this trial originally, 
+		// we should NOT convert that ptrans adjustment (made to "jump" the
+		// target prior to pursuit period) in the replay. This involves simply
+		// replacing the value for 'phi' in the camera update with 'phi0' from
+		// the bpsh struct for the trial. The 'phiPS' value is the initial "jump"
+		// phi value, whereas the 'phi0' value is the initial pursuit/ptrans dot
+		// phi position when NOT doing jump start. 
+		if (istep == 0)
+		{
+			// test for jump start
+			if (pbpsh->do_pursuit_jump_start)
+			{
+				pcam.a0 = pbpsh->phi0;
+				dprintf("JUMP START PHI %d bpsh: PHIPS %d PHI0 %d\n", IPRT(pcam.a0, 100), IPRT(pbpsh->phiPS, 100), IPRT(pbpsh->phi0, 100));
+			}
+			
+		}
 		render_camera_s(&pcam);
+		
+
 	}
 	
-	// Now pass camera update if needed. The camera update will have translation
-	// and the correction(s). 
-
-	if (psavedStuff->cam_update)
-	{
-		render_camera_s(&psavedStuff->cam);
-	}
 	
 	
 	return psavedStuff->step_status;
