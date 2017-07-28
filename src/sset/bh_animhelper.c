@@ -492,11 +492,26 @@ int bpsh_step_replay(BPSHStruct *pbpsh, int istep)
 	if (psavedStuff->cam_update)
 	{
 		render_camera_s(&psavedStuff->cam);
+		//dprintf("CAMERA istep %d\n", istep);
 	}
 
 	// What was a ptrans update in a pursuit trial will become
 	// a camera update here. 
+	// In pursuit trials, the ptrans is set on initial frame, then its left alone
+	// until pursuit begins. In a replay trial, the ptrans updates are converted to 
+	// camera updates (multiplying the operation, not erasing previous operation). 
+	// But if there is a replay frame where the CAMERA is updated but PTRANS is NOT,
+	// (i.e. during translation prior to pursuit), then there will be abrupt shifts
+	// of the background dots when pursuit starts (also on the first frame where
+	// translation happens without pursuit). 
 	// 
+	// The fix is to 
+	// a) set CAMERA_PURSUIT operation on first frame, using phi0 (initial pursuit phi position)
+	// b) set same operation (using phi0) on all frames where camera is updated but PTRANS
+	//    is not (***)
+	// c) set CAMERA_PURSUIT operations on frames where CAMERA and PTRANS were updated, using
+	//    the value 'phi', which changes each frame during pursuit. 
+
 	
 	if (psavedStuff->ptrans_update)
 	{
@@ -523,15 +538,32 @@ int bpsh_step_replay(BPSHStruct *pbpsh, int istep)
 			if (pbpsh->do_pursuit_jump_start)
 			{
 				pcam.a0 = pbpsh->phi0;
-				dprintf("JUMP START PHI %d bpsh: PHIPS %d PHI0 %d\n", IPRT(pcam.a0, 100), IPRT(pbpsh->phiPS, 100), IPRT(pbpsh->phi0, 100));
+				//dprintf("JUMP START PHI %d bpsh: PHIPS %d PHI0 %d\n", IPRT(pcam.a0, 100), IPRT(pbpsh->phiPS, 100), IPRT(pbpsh->phi0, 100));
 			}
 			
 		}
 		render_camera_s(&pcam);
 		
 
+		//dprintf("PTRANS istep %d PHI %d\n", istep, IPRT(pcam.a0, 100));
+		
 	}
-	
+	else if (psavedStuff->cam_update)
+	{
+		CameraStruct pcam;
+		pcam.a0 = pbpsh->phi0;
+		pcam.a1 = psavedStuff->ptrans.beta;
+		pcam.a2 = psavedStuff->ptrans.rho;
+		pcam.ex = pcam.ey = pcam.ez = 0;
+		pcam.dx = pcam.dy = pcam.dz = 0;
+		pcam.ux = pcam.uy = pcam.uz = 0;
+		pcam.flag = CAMERA_MULT | CAMERA_PURSUIT;
+			
+		render_camera_s(&pcam);
+		
+
+		//dprintf("!PTRANS istep %d PHI %d\n", istep, IPRT(pcam.a0, 100));
+	}
 	
 	
 	return psavedStuff->step_status;
