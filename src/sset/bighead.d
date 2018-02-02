@@ -1,3 +1,4 @@
+
 /* $Id: bighead.d,v 1.23 2015/09/17 21:12:11 devel Exp $ */
 
 #include <math.h>
@@ -84,6 +85,7 @@ int f_last_time = 0;
 DotStruct f_fixpt;
 CameraStruct f_camera;
 OuterSpaceStruct f_outerspace;
+ConstantDensityPlaneStruct f_constantdensityplane;
 int f_width;                    /* screen resolution */
 int f_height;                   /* screen resolution */
 double f_frames_per_second = 85;	/* frame rate for render */
@@ -469,7 +471,9 @@ int f_ospace_dots_per_block = 1000;
 int f_ospace_dot_color[4] = {255, 255, 255, 1};
 float f_ospace_dot_size = 2.0;
 int f_ospace_block_pool = 0;
-
+int f_useCDP = 0;
+int f_cdp_plane_distance = 100;
+int f_cdp_npts = 500;
 
 VLIST ospace_vl[] = {
 "dots/1000**3", &f_ospace_dots_per_block, NP, NP, 0, ME_DEC,
@@ -478,6 +482,9 @@ VLIST ospace_vl[] = {
 "dot_color(G)", &f_ospace_dot_color[1], 0, NP, 0, ME_DEC,
 "dot_color(B)", &f_ospace_dot_color[2], 0, NP, 0, ME_DEC,
 "pool_size", &f_ospace_block_pool, 0, NP, 0, ME_DEC,
+"ConstDensityPlane(1/0)", &f_useCDP, 0, NP, 0, ME_DEC,
+"Npts_visible", &f_cdp_npts, 0, NP, 0, ME_DEC,
+"dist_to_plane", &f_cdp_plane_distance, 0, NP, 0, ME_DEC,
 NS,
 };
 
@@ -850,19 +857,37 @@ int my_render_init()
 	render_camera_s(&f_camera);
 
 	/*
-	 * TODO: Configure outer space here. 
+	 * Configure outer space or constant density plane.
+	 * Both will use the handle f_ospace_handle
 	 */
-	f_outerspace.block_size_x = f_outerspace.block_size_y = f_outerspace.block_size_z = f_ospace_block_size;
-	f_outerspace.dots_per_block = f_ospace_dots_per_block;
-	f_outerspace.pool_size = f_ospace_block_pool;
-	f_outerspace.dot_r = (unsigned char)f_ospace_dot_color[0];
-	f_outerspace.dot_g = (unsigned char)f_ospace_dot_color[1];
-	f_outerspace.dot_b = (unsigned char)f_ospace_dot_color[2];
-	f_outerspace.dot_a = (unsigned char)f_ospace_dot_color[3];
-	f_outerspace.dot_size = f_ospace_dot_size;
-	f_outerspace.flags = 0;
-	render_outerspace(&f_outerspace);
-
+	if (!f_useCDP)
+	{
+		f_outerspace.block_size_x = f_outerspace.block_size_y = f_outerspace.block_size_z = f_ospace_block_size;
+		f_outerspace.dots_per_block = f_ospace_dots_per_block;
+		f_outerspace.pool_size = f_ospace_block_pool;
+		f_outerspace.dot_r = (unsigned char)f_ospace_dot_color[0];
+		f_outerspace.dot_g = (unsigned char)f_ospace_dot_color[1];
+		f_outerspace.dot_b = (unsigned char)f_ospace_dot_color[2];
+		f_outerspace.dot_a = (unsigned char)f_ospace_dot_color[3];
+		f_outerspace.dot_size = f_ospace_dot_size;
+		f_outerspace.flags = 0;
+		render_outerspace(&f_outerspace);
+	}
+	else
+	{
+		f_constantdensityplane.npts = f_cdp_npts;
+		f_constantdensityplane.distance_to_plane = fabs(f_cdp_plane_distance);
+		f_constantdensityplane.x_normal = 0;
+		f_constantdensityplane.y_normal = 0;
+		f_constantdensityplane.z_normal = -1;
+		f_constantdensityplane.pseed = 0;
+		f_constantdensityplane.pixsz = f_ospace_dot_size;
+		f_constantdensityplane.r = (unsigned char)f_ospace_dot_color[0];
+		f_constantdensityplane.g = (unsigned char)f_ospace_dot_color[1];
+		f_constantdensityplane.b = (unsigned char)f_ospace_dot_color[2];
+		f_constantdensityplane.a = (unsigned char)f_ospace_dot_color[3];
+		render_constantdensityplane(&f_constantdensityplane);
+	}
 	ptrans.phi = 0;
 	ptrans.beta = 0;
 	ptrans.rho = 0;
@@ -2114,6 +2139,15 @@ int my_trial_init()
 		bcode_float(CHF_PURSUIT_SPEED, f_pbpshlist[f_trial_condition_index]->vp);
 		bcode_int(CHI_TTYPE, f_pbpshlist[f_trial_condition_index]->ttype);
 		bcode_int(CHI_PTYPE, f_pbpshlist[f_trial_condition_index]->ptype);
+		
+		
+		// If using constant density plane, re-initialize points.
+		if (f_useCDP)
+		{
+			render_constantdensityplane_initialize_points(f_ospace_handle);
+		}
+				
+		
 
 		if (f_trialtype == TRIALTYPE_REPLAY)
 		{
