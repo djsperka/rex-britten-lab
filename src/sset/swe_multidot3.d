@@ -438,13 +438,19 @@ int stimoff(int flag)
 {
 	if (rtheta_ovr != NULLI || ltheta_ovr != NULLI)
 	{
-		render_onoff(&f_ff2dHandle[OVR], HANDLE_OFF, ONOFF_NO_FRAME);
-		render_frame(1);
+		if (f_ff2dHandle[OVR] > 0)
+		{
+			render_onoff(&f_ff2dHandle[OVR], HANDLE_OFF, ONOFF_NO_FRAME);
+			render_frame(1);
+		}
 	}
 	else
 	{  
-    	render_onoff(&f_ff2dHandle[stimindex], HANDLE_OFF, ONOFF_NO_FRAME);
-    	render_frame(1);
+		if (f_ff2dHandle[stimindex] > 0)
+		{
+			render_onoff(&f_ff2dHandle[stimindex], HANDLE_OFF, ONOFF_NO_FRAME);
+			render_frame(1);
+		}
     }
 
   if (flag)
