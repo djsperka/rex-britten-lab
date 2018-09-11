@@ -149,7 +149,7 @@ void bh_replay_close_output_file()
 
 
 
-int bh_replay_load(char *filename, BPSHStruct **pbpshlist, int maxlist)
+int bh_replay_load(char *filename, BPSHStruct **pbpshlist, int maxlist, int singleTimestamp)
 {
 	int count = 0;
 	if (f_fp) bh_replay_close_output_file();
@@ -164,8 +164,6 @@ int bh_replay_load(char *filename, BPSHStruct **pbpshlist, int maxlist)
 	{
 		int magic, ts, nframes;
 		dprintf("Opened bpsh command file %s\n", filename);
-		dprintf("sizeof(BPSHStruct): %d\n", sizeof(BPSHStruct));
-		dprintf("sizeof(BPSHSave): %d\n", sizeof(BPSHSave));
 	
 		// read magic number. If this fails, we've reached the end of the file.
 		// Note no error checking, I assume that if the magic number is correct
@@ -184,24 +182,27 @@ int bh_replay_load(char *filename, BPSHStruct **pbpshlist, int maxlist)
 				pbpshlist[count]->psaved = (BPSHSave *)calloc(nframes, sizeof(BPSHSave));
 				pbpshlist[count]->nsaved = nframes;
 				i4 = fread(pbpshlist[count]->psaved, sizeof(BPSHSave), nframes, f_fp);				 
-				dprintf("%d: t=%d n=%d frames %d %d %d %d\n", count, pbpshlist[count]->timestamp, nframes, i1, i2, i3, i4);
+
 				
-				print_bpsh(pbpshlist[count]);
-#if 0
-				for (j=0; j<nframes; j++)
+				// Is this the timestamp we're looking for?
+				if ((singleTimestamp && singleTimestamp == pbpshlist[count]->timestamp) ||
+					!singleTimestamp)
 				{
-					dprintf("frame %d: %d %d %d\n", 
-							pbpshlist[count]->psaved[j].istep,
-							IPRT(pbpshlist[count]->psaved[j].cam.ex, 100),
-							IPRT(pbpshlist[count]->psaved[j].cam.ey, 100),
-							IPRT(pbpshlist[count]->psaved[j].cam.ez, 100));
+					dprintf("%d: t=%d n=%d frames %d %d %d %d\n", count, pbpshlist[count]->timestamp, nframes, i1, i2, i3, i4);
+					print_bpsh(pbpshlist[count]);
+					count++;
 				}
-#endif
-				count++;
+				else
+				{
+					dprintf("Skip trial with timestamp %d\n", pbpshlist[count]->timestamp, nframes, i1, i2, i3, i4);
+					// free memory
+					free(pbpshlist[count]->psaved);
+					free(pbpshlist[count]);
+				}
 			}
 			else
 			{
-//				dprintf("ERROR - got bad magif number %d\n", magic);
+				dprintf("ERROR - got bad magic number %d\n", magic);
 			}
 			
 		}

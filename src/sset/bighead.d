@@ -511,6 +511,7 @@ char f_savecommandsfolder[128];
 char f_savecommandsfile[256];	/* This will be full path for the file */
 char f_replaybase[32];         /* replay file basename (excluding .cmd and path)*/
 int f_use_replay_file = 0;
+int f_replaySingleTimestamp = 0;
 
 /* Reward variables for replay trials */
 int f_fix_initial = -1;				/* Initial fixation point in replay trial */
@@ -522,6 +523,7 @@ VLIST savecommands_vl[] = {
 "none/save(0/1)", &f_savecommands, NP, NP, 0, ME_DEC,
 "folder", f_savecommandsfolder, NP, NP, 0, ME_STR,
 "replay_base", f_replaybase, NP, NP, 0, ME_STR,
+"timestamp(0=all_trials)", &f_replaySingleTimestamp, NP, NP, 0, ME_DEC,
 NS,
 };
 
@@ -1170,6 +1172,7 @@ int my_exp_init()
 				f_exp_abort = 1;
 				return ERRORCD;
 			}
+			dprintf("Opened file for saving commands: %s\n", f_savecommandsfile);
 		}
 			
 	} 
@@ -1218,7 +1221,7 @@ int generate_replay_trials()
 		strcat(f_savecommandsfile, f_replaybase);
 		strcat(f_savecommandsfile, ".bpsh");
 		dprintf("Loading trials from replay file %s\n", f_savecommandsfile);
-		f_nbpshlist = bh_replay_load(f_savecommandsfile, f_pbpshlist, MAX_BPSHLIST);
+		f_nbpshlist = bh_replay_load(f_savecommandsfile, f_pbpshlist, MAX_BPSHLIST, f_replaySingleTimestamp);
 		
 		/* 
 		 * re-set some members of the BPSHStruct - handle values - to make sure
